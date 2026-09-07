@@ -12,7 +12,7 @@ dependencies = [
     "pydantic>=2.10",
     "sqlglot>=26",
     "numpy>=2",
-    "layers-json @ file://${HOME}/GWorkspace/layers-json",
+    "layers-json[model] @ file://${HOME}/GWorkspace/layers-json",
 ]
 
 [project.optional-dependencies]

@@ -6,7 +6,8 @@ import json
 import random
 from collections.abc import Iterable
 
-from .layers import Column, Layer, Layers
+from layers_json.layers import Column, Layer, Layers
+
 from .model import FELN
 
 INT_TYPES = {"SmallInteger": "SMALLINT", "Integer": "INTEGER", "BigInteger": "BIGINT"}

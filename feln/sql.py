@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from textwrap import dedent
 
-from .layers import Layer, Layers
+from layers_json.layers import Layer, Layers
+
 from .model import FELN, Relation, parse_relation
 from .sanitize import sanitize_identifier, sanitize_where_clause, table_ident
 from .units import to_meters

@@ -1,9 +1,10 @@
 """FELN queries over a layers-json catalog."""
 
+from layers_json.layers import Column, Layer, Layers
+
 from .compare import Encoder, FELNCompare
 from .generate import sample
 from .identical import identical, normalize_where
-from .layers import Column, Layer, Layers
 from .model import FELN, Relation, parse_relation
 from .sql import FELNToDuckDB, feln_to_sql
 from .units import to_meters

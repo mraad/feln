@@ -29,7 +29,7 @@ name = "feln"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "layers-json" },
+    { name = "layers-json", extra = ["model"] },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydantic" },
@@ -44,7 +44,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "layers-json", directory = "${HOME}/GWorkspace/layers-json" },
+    { name = "layers-json", extras = ["model"], directory = "${HOME}/GWorkspace/layers-json" },
     { name = "numpy", specifier = ">=2" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
@@ -64,18 +64,25 @@ wheels = [
 
 [[package]]
 name = "layers-json"
-version = "0.2.4"
+version = "0.3.0"
 source = { directory = "${HOME}/GWorkspace/layers-json" }
+
+[package.optional-dependencies]
+model = [
+    { name = "pydantic" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "gdal", marker = "extra == 'fgdb'", specifier = ">=3.5" },
+    { name = "layers-json", extras = ["model"], marker = "extra == 'dev'" },
     { name = "pyarrow", marker = "extra == 'dev'", specifier = ">=25" },
+    { name = "pydantic", marker = "extra == 'model'", specifier = ">=2.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
     { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16" },
 ]
-provides-extras = ["fgdb", "dev"]
+provides-extras = ["model", "fgdb", "dev"]
 
 [[package]]
 name = "numpy"
