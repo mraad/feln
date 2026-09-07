@@ -21,7 +21,7 @@ required: this project reads `Layers.json`, it does not author one.
 
 ## Architecture
 
-```
+```text
 Layers.json ──layers_json.layers.Layers──> catalog
                  │
                  ├── generate.py ──> synthetic {text, meta} jsonl
