@@ -14,10 +14,14 @@ uv run feln sql tests/fixtures/layers.json /tmp/q.json
 uv run feln compare a.json b.json
 ```
 
-Runtime dependencies are pydantic, sqlglot, numpy, and a path dependency on
-the sibling `../layers-json` checkout, taken as `layers-json[model]` — the
-`model` extra is the catalog model this package imports. GDAL is **not**
-required: this project reads `Layers.json`, it does not author one.
+Runtime dependencies are pydantic, sqlglot, numpy, and `layers-json[model]`
+pinned to a commit of the private layers-json repo — the `model` extra is the
+catalog model this package imports. Installing needs GitHub credentials; the
+pin means a local edit in `../layers-json` is invisible here until it is pushed
+and the `rev` bumped. To work across both, `uv pip install -e ../layers-json`
+and then run with `uv run --no-sync` — a plain `uv run` re-syncs and silently
+restores the pin. GDAL is **not** required: this project reads `Layers.json`, it
+does not author one.
 
 ## Architecture
 

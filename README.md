@@ -21,16 +21,27 @@ pre-computed column (for example `dist_*`) in a WHERE clause.
 
 ## Install
 
-From a checkout, next to `layers-json`:
-
 ```bash
 uv sync --extra dev
 ```
 
-`layers-json[model]` is a path dependency (`../layers-json`); its `model`
-extra is the `Column` / `Layer` / `Layers` catalog model this package imports
-and re-exports. Runtime needs pydantic, sqlglot, and numpy; GDAL is not
-required.
+`layers-json[model]` is pinned to a commit of the private
+[layers-json](https://github.com/mraad/layers-json) repo, so installing needs
+GitHub credentials (`gh auth login`, or a token in CI). Its `model` extra is the
+`Column` / `Layer` / `Layers` catalog model this package imports and re-exports.
+Runtime needs pydantic, sqlglot, and numpy; GDAL is not required.
+
+Working on both repos at once? Shadow the pin with the local checkout:
+
+```bash
+uv pip install -e ../layers-json      # edits in ../layers-json take effect immediately
+uv run --no-sync pytest -q            # --no-sync, or plain uv run puts the pin back
+```
+
+`uv run` re-syncs the environment first, which silently reinstalls the pinned
+commit — so use `uv run --no-sync` (or `.venv/bin/python`) while the override is
+in place, and a plain `uv sync` to drop it. When a layers-json change is needed
+for real, push it and bump the `rev` in `pyproject.toml`.
 
 ## CLI
 

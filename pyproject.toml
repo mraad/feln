@@ -12,7 +12,12 @@ dependencies = [
     "pydantic>=2.10",
     "sqlglot>=26",
     "numpy>=2",
-    "layers-json[model] @ file://${HOME}/GWorkspace/layers-json",
+    # Commit-pinned so a clean checkout resolves the same tree anywhere, rather than
+    # assuming this machine's layout. The repo is private: installing needs GitHub
+    # credentials (gh auth / a token in CI). Bump the rev when layers-json lands a
+    # change this package needs; for local cross-repo work, shadow it with
+    # `uv pip install -e ../layers-json` after syncing.
+    "layers-json[model] @ git+https://github.com/mraad/layers-json.git@08c6792ebd265d1813ab0a1fba16dc7178f3290f",
 ]
 
 [project.optional-dependencies]
