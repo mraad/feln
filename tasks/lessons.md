@@ -1,0 +1,1 @@
+- Do not override pydantic v2 `BaseModel.__iter__` to yield children; it yields field pairs. Iterate `.layers`.

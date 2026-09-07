@@ -1,0 +1,100 @@
+{
+  "layers": [
+    {
+      "name": "Wells",
+      "table_name": "Wells",
+      "alias": "wells",
+      "stype": "Point",
+      "display": "NAME",
+      "subtype": "STATUS",
+      "columns": [
+        {
+          "name": "NAME",
+          "alias": "name",
+          "dtype": "String",
+          "utype": null,
+          "minmax": [],
+          "keyval": {},
+          "hints": ["Use LIKE for partial name matches."],
+          "values": ["Alpha-1", "Bravo-2", "Charlie-3"]
+        },
+        {
+          "name": "STATUS",
+          "alias": "status",
+          "dtype": "Integer",
+          "utype": null,
+          "minmax": [],
+          "keyval": {"1": "Active", "2": "Suspended"},
+          "hints": [],
+          "values": ["1", "2"]
+        },
+        {
+          "name": "DEPTH",
+          "alias": "depth",
+          "dtype": "Double",
+          "utype": "m",
+          "minmax": [0, 5000],
+          "keyval": {},
+          "hints": [],
+          "values": ["100", "250", "500", "1000"]
+        }
+      ],
+      "hints": ["Offshore wellbores."],
+      "uri": "/data/NorthSea.gdb/Wells"
+    },
+    {
+      "name": "Pipelines",
+      "table_name": "Pipelines",
+      "alias": "pipelines",
+      "stype": "Polyline",
+      "display": "NAME",
+      "subtype": null,
+      "columns": [
+        {
+          "name": "NAME",
+          "alias": "name",
+          "dtype": "String",
+          "utype": null,
+          "minmax": [],
+          "keyval": {},
+          "hints": [],
+          "values": ["Line A", "Line B"]
+        },
+        {
+          "name": "MEDIUM",
+          "alias": "medium",
+          "dtype": "String",
+          "utype": null,
+          "minmax": [],
+          "keyval": {},
+          "hints": ["Values are uppercase."],
+          "values": ["OIL", "GAS"]
+        }
+      ],
+      "hints": [],
+      "uri": "/data/NorthSea.gdb/Pipelines"
+    },
+    {
+      "name": "Counties",
+      "table_name": "Counties",
+      "alias": "counties",
+      "stype": "Polygon",
+      "display": "NAME",
+      "subtype": null,
+      "columns": [
+        {
+          "name": "NAME",
+          "alias": "name",
+          "dtype": "String",
+          "utype": null,
+          "minmax": [],
+          "keyval": {},
+          "hints": [],
+          "values": ["County A", "County B"]
+        }
+      ],
+      "hints": [],
+      "uri": "/data/NorthSea.gdb/Counties"
+    }
+  ]
+}

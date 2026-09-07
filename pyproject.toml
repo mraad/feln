@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "feln"
+version = "0.1.0"
+description = "FELN queries over a layers-json catalog: model, compare, DuckDB SQL, and a generate CLI."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.10",
+    "sqlglot>=26",
+    "numpy>=2",
+    "layers-json @ file://${HOME}/GWorkspace/layers-json",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.16", "pytest>=9"]
+
+[project.scripts]
+feln = "feln.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["feln"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501", "N801"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
