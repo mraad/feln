@@ -7,9 +7,10 @@ import json
 import sys
 from pathlib import Path
 
+from layers_json.layers import Layers
+
 from .compare import FELNCompare
 from .generate import generate, records_to_jsonl
-from .layers import Layers
 from .model import FELN
 from .sql import feln_to_sql
 

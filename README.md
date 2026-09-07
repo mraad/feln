@@ -27,8 +27,10 @@ From a checkout, next to `layers-json`:
 uv sync --extra dev
 ```
 
-`layers-json` is a path dependency (`../layers-json`). Runtime needs
-pydantic, sqlglot, and numpy; GDAL is not required.
+`layers-json[model]` is a path dependency (`../layers-json`); its `model`
+extra is the `Column` / `Layer` / `Layers` catalog model this package imports
+and re-exports. Runtime needs pydantic, sqlglot, and numpy; GDAL is not
+required.
 
 ## CLI
 

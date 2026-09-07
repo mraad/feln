@@ -15,26 +15,29 @@ uv run feln compare a.json b.json
 ```
 
 Runtime dependencies are pydantic, sqlglot, numpy, and a path dependency on
-the sibling `../layers-json` checkout. GDAL is **not** required: this project
-reads `Layers.json`, it does not author one.
+the sibling `../layers-json` checkout, taken as `layers-json[model]` — the
+`model` extra is the catalog model this package imports. GDAL is **not**
+required: this project reads `Layers.json`, it does not author one.
 
 ## Architecture
 
-```
-Layers.json ──feln.layers.Layers──> catalog
+```text
+Layers.json ──layers_json.layers.Layers──> catalog
                  │
                  ├── generate.py ──> synthetic {text, meta} jsonl
                  ├── sql.py      ──> DuckDB spatial SQL
                  └── compare.py  ──> structural / semantic score
 ```
 
-`layers-json` is the catalog **producer**. This package is a **consumer**: it
-parses the JSON `Column` / `Layer` / `Layers` byte shape that `NanoMap.pyt`
-emits (field names and empties included). Do not import toolbox classes at
-runtime — `load_toolbox()` is a test-only round-trip so the parser cannot
-drift from the producer. A new field on the toolbox `Layer.to_dict()` is
-ignored here until `feln.layers.Layer` grows it; `table_name` is already
-modelled because SQL uses it.
+`layers-json` is the catalog **producer** *and* owns the consumer-side model.
+`Column` / `Layer` / `Layers` live in `layers_json.layers` (the `model` extra)
+and are re-exported from `feln` for convenience — there is no `feln/layers.py`,
+and re-adding one puts the `Layers.pyt` byte shape back in two places. A new
+field on the toolbox `Layer.to_dict()` is ignored until `layers_json.layers`
+grows it, and `layers-json`'s own `tests/test_layers_model.py` is the round-trip
+that catches the drift. Do not import toolbox classes at runtime: they are
+producer-side plain dicts reachable only via `load_toolbox()` with arcpy stubbed.
+`table_name` is already modelled because SQL uses it.
 
 FELN list lengths are the invariant: `len(where) == len(layers)` and
 `len(relations) == len(layers) - 1`. `layers[0]` is primary;
@@ -78,10 +81,10 @@ If you add a new relation kind, teach `model.parse_relation`, `compare`,
 
 ## Testing notes
 
-- `tests/fixtures/layers.json` is a hand-written catalog in the NanoMap
+- `tests/fixtures/layers.json` is a hand-written catalog in the Layers.pyt
   byte shape. Prefer it over a live ArcGIS project.
-- `test_layers.py` round-trips a toolbox `Layers.dump` through `Layers.load`
-  so a producer field change shows up here. That test imports
-  `layers_json.layers_from_aprx.load_toolbox` (no GDAL).
+- `test_layers.py` covers the fixture contract only. The producer→consumer
+  round-trip moved to `layers-json`'s `tests/test_layers_model.py`, which is
+  where the model now lives; do not re-add a copy here.
 - Compare tests lock exact scores for permutation, `within`/`inside`, and
   mile/kilometre equivalence. Do not widen them to `0 < score < 1`.
