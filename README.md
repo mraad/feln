@@ -65,11 +65,13 @@ uv run feln compare a.json b.json
 Pass `--sql` to add a DuckDB SQL string on each record.
 
 When a layer has subtype labels, they always supply the feature name in text,
-for both primary and spatial filter layers. For example, a subtype label `Hospitals` can produce `Show Hospitals`
-with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
-Additional conditions are ANDed with that subtype filter. Labels are kept as authored;
-no automatic pluralization or dataset-specific filters are added. Missing subtype
-metadata falls back to the layer alias and ordinary field conditions.
+for both primary and spatial filter layers. For example, a subtype label `Hospitals` produces
+`Show hospitals` with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
+Labels are lowercased in text; `--alias-suffix` (`generate(..., alias_suffix=True)`) appends the
+layer alias — `Show oil discoveries`, `List all dry wells` — which disambiguates labels shared
+across layers. Leave it off when the alias is not a noun (`master`). Additional conditions
+are ANDed with that subtype filter; no pluralization or dataset-specific filters are added.
+Missing subtype metadata falls back to the layer alias and ordinary field conditions.
 
 ## Library
 

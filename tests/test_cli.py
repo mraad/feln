@@ -28,6 +28,14 @@ def test_generate_sql_flag(capsys) -> None:
     assert "FROM" in row["sql"]
 
 
+def test_generate_alias_suffix_flag(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "20", "--seed", "0", "--alias-suffix"])
+    assert code == 0
+    texts = [json.loads(ln)["text"] for ln in capsys.readouterr().out.splitlines() if ln]
+    assert any("active wells" in t or "suspended wells" in t for t in texts)
+    assert not any("Active" in t or "Suspended" in t for t in texts)
+
+
 def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     query = {
         "layers": ["Wells", "Pipelines"],

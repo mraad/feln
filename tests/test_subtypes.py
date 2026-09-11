@@ -27,7 +27,7 @@ def test_subtype_noun_keeps_code_and_parenthesizes_extra_filter():
         "feln.generate.where_clause", return_value=("name is A or B", "NAME = 'A' or NAME = 'B'")
     ) as where:
         label, nl, sql = layer_phrase(random.Random(1), layer, 2)
-    assert label == "Hospitals"
+    assert label == "hospitals"
     assert nl == "name is A or B"
     assert sql == "KIND = cast(1 as INTEGER) and (NAME = 'A' or NAME = 'B')"
     assert where.call_args.kwargs == {"exclude": "KIND"}
@@ -38,7 +38,24 @@ def test_string_subtype_codes_are_escaped():
         name="Places", subtype="KIND", columns=[Column(name="kind", keyval={"O'Brien": "Clinics"})]
     )
     label, nl, sql = layer_phrase(random.Random(1), layer, 1)
-    assert (label, nl, sql) == ("Clinics", "", "kind = 'O''Brien'")
+    assert (label, nl, sql) == ("clinics", "", "kind = 'O''Brien'")
+
+
+def test_alias_suffix_follows_lowercased_label():
+    layer = subtype_layer()
+    label, _, sql = layer_phrase(random.Random(1), layer, 1, alias_suffix=True)
+    assert label in {"hospitals places", "schools places"}
+    assert sql.startswith("KIND = cast(")
+    # A label that already ends with the alias is not doubled.
+    layer = Layer(
+        name="Wells",
+        alias="wells",
+        subtype="KIND",
+        columns=[Column(name="KIND", dtype="Integer", keyval={"1": "Dry Wells"})],
+    )
+    assert layer_phrase(random.Random(1), layer, 1, alias_suffix=True)[0] == "dry wells"
+    texts = [r["text"] for r in generate(Layers(layers=[subtype_layer()]), 6, alias_suffix=True)]
+    assert all(("hospitals places" in t) ^ ("schools places" in t) for t in texts)
 
 
 def test_missing_subtype_mapping_falls_back():
@@ -62,8 +79,8 @@ def test_primary_and_secondary_subtypes_match_generated_sql():
     for seed in range(100):
         phrases = []
 
-        def capture(*args):
-            result = layer_phrase(*args)
+        def capture(*args, **kwargs):
+            result = layer_phrase(*args, **kwargs)
             phrases.append(result)
             return result
 
@@ -73,9 +90,9 @@ def test_primary_and_secondary_subtypes_match_generated_sql():
         feln_to_sql(meta, Layers(layers=layers))
         for i, (label, _, sql) in enumerate(phrases):
             expected = {
-                "Hospitals": "KIND = cast(1 as INTEGER)",
-                "Schools": "KIND = cast(2 as INTEGER)",
-                "Districts": "TYPE = cast(3 as INTEGER)",
+                "hospitals": "KIND = cast(1 as INTEGER)",
+                "schools": "KIND = cast(2 as INTEGER)",
+                "districts": "TYPE = cast(3 as INTEGER)",
             }.get(label)
             if expected:
                 assert label in text
