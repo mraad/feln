@@ -69,9 +69,12 @@ for both primary and spatial filter layers. For example, a subtype label `Hospit
 `Show hospitals` with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
 Labels are lowercased in text; `--alias-suffix` (`generate(..., alias_suffix=True)`) appends the
 layer alias — `Show oil discoveries`, `List all dry wells` — which disambiguates labels shared
-across layers. Leave it off when the alias is not a noun (`master`). Additional conditions
-are ANDed with that subtype filter; no pluralization or dataset-specific filters are added.
-Missing subtype metadata falls back to the layer alias and ordinary field conditions.
+across layers. Leave it off when the alias is not a noun (`master`). `--layer-only 0.25`
+(`layer_only=0.25`) phrases that share of subtyped layers by alias alone — `Show wells`,
+`List pipelines` — with no subtype filter, and the subtype column then competes as an
+ordinary condition (`wells where content type is DRY`). Additional conditions are ANDed
+with the subtype filter; no pluralization or dataset-specific filters are added. Missing
+subtype metadata falls back to the layer alias and ordinary field conditions.
 
 ## Library
 

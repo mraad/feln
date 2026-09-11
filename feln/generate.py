@@ -153,13 +153,21 @@ def where_clause(
 
 
 def layer_phrase(
-    rng: random.Random, layer: Layer, n_conditions: int, *, alias_suffix: bool = False
+    rng: random.Random,
+    layer: Layer,
+    n_conditions: int,
+    *,
+    alias_suffix: bool = False,
+    layer_only: float = 0.0,
 ) -> tuple[str, str, str]:
     """A layer/subtype noun phrase, extra condition text, and its complete filter.
 
     Subtype labels are lowercased; *alias_suffix* appends the layer alias
     (``oil discoveries``, ``dry wells``) so labels shared across layers stay
     unambiguous. Leave it off when the alias is not a noun (sample-catalog ``master``).
+    *layer_only* is the share of subtyped layers phrased by alias alone
+    (``Show wells``) with no subtype filter; the subtype column is then an
+    ordinary condition candidate (``wells where content type is DRY``).
     """
     subtype = next(
         (
@@ -170,7 +178,7 @@ def layer_phrase(
         None,
     )
     alias = (layer.alias or layer.name).lower()
-    if subtype is None:
+    if subtype is None or (layer_only and rng.random() < layer_only):
         nl, sql = where_clause(rng, layer, n_conditions)
         return alias, nl, sql
     code, label = rng.choice(list(subtype.keyval.items()))
@@ -211,7 +219,11 @@ def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str,
 
 
 def sample(
-    rng: random.Random, layers: list[Layer], *, alias_suffix: bool = False
+    rng: random.Random,
+    layers: list[Layer],
+    *,
+    alias_suffix: bool = False,
+    layer_only: float = 0.0,
 ) -> tuple[str, FELN]:
     """One templated sentence and a valid FELN drawn from *layers*."""
     spatial = [layer for layer in layers if layer.stype in SPATIAL]
@@ -226,7 +238,7 @@ def sample(
         n_conds[0] = 1
     labels, nls, sqls = zip(
         *(
-            layer_phrase(rng, layer, k, alias_suffix=alias_suffix)
+            layer_phrase(rng, layer, k, alias_suffix=alias_suffix, layer_only=layer_only)
             for layer, k in zip(chosen, n_conds, strict=True)
         )
     )
@@ -262,6 +274,7 @@ def generate(
     seed: int = 0,
     max_attempts: int | None = None,
     alias_suffix: bool = False,
+    layer_only: float = 0.0,
 ) -> list[dict]:
     """Draw *n* unique FELN metas. Each record is ``{"text", "meta"}``."""
     rng = random.Random(seed)
@@ -274,7 +287,7 @@ def generate(
     attempts = 0
     while len(records) < n and attempts < budget:
         attempts += 1
-        text, meta = sample(rng, layers, alias_suffix=alias_suffix)
+        text, meta = sample(rng, layers, alias_suffix=alias_suffix, layer_only=layer_only)
         key = json.dumps(meta.model_dump(), sort_keys=True)
         if key in seen:
             continue

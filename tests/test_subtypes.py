@@ -58,6 +58,24 @@ def test_alias_suffix_follows_lowercased_label():
     assert all(("hospitals places" in t) ^ ("schools places" in t) for t in texts)
 
 
+def test_layer_only_names_the_whole_layer_without_a_subtype_filter():
+    layer = subtype_layer()
+    assert layer_phrase(random.Random(1), layer, 0, layer_only=1.0) == ("places", "", "")
+    phrases = set()
+    for seed in range(40):
+        label, nl, sql = layer_phrase(random.Random(seed), layer, 1, layer_only=1.0)
+        assert label == "places"
+        assert bool(nl) == bool(sql)  # a filter is always spoken, never implied
+        phrases.add(nl)
+    # The subtype column is back in the pool as an ordinary condition.
+    assert any(nl.lower().startswith("kind is") for nl in phrases)
+    assert any(nl.lower().startswith("name") for nl in phrases)
+    catalog = Layers(layers=[layer])
+    assert generate(catalog, 10, seed=2) == generate(catalog, 10, seed=2, layer_only=0.0)
+    mixed = {r["text"].split()[1] for r in generate(catalog, 30, seed=2, layer_only=0.5)}
+    assert mixed >= {"places", "hospitals", "schools"}
+
+
 def test_missing_subtype_mapping_falls_back():
     for subtype in (None, "absent", "kind"):
         layer = Layer(name="Places", alias="places", subtype=subtype, columns=[Column(name="kind")])

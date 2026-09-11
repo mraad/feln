@@ -30,7 +30,13 @@ def _load_catalog(path: Path) -> Layers:
 
 def cmd_generate(args: argparse.Namespace) -> int:
     catalog = _load_catalog(args.layers_json)
-    records = generate(catalog, args.n, seed=args.seed, alias_suffix=args.alias_suffix)
+    records = generate(
+        catalog,
+        args.n,
+        seed=args.seed,
+        alias_suffix=args.alias_suffix,
+        layer_only=args.layer_only,
+    )
     if args.sql:
         for record in records:
             record["sql"] = feln_to_sql(FELN.model_validate(record["meta"]), catalog)
@@ -84,6 +90,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="append the layer alias to subtype labels in text (oil discoveries, dry wells)",
     )
+    gen.add_argument(
+        "--layer-only",
+        type=float,
+        default=0.0,
+        metavar="SHARE",
+        help="share [0,1] of subtyped layers phrased by alias alone, no subtype filter "
+        "(Show wells); default 0",
+    )
     gen.set_defaults(func=cmd_generate)
 
     sql = sub.add_parser("sql", help="compile one FELN JSON file to DuckDB spatial SQL")
@@ -108,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.cmd == "generate" and args.n < 1:
         parser.error("-n must be at least 1")
+    if args.cmd == "generate" and not 0 <= args.layer_only <= 1:
+        parser.error("--layer-only must be within [0, 1]")
     try:
         return args.func(args)
     except FileNotFoundError as exc:

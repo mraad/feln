@@ -36,6 +36,14 @@ def test_generate_alias_suffix_flag(capsys) -> None:
     assert not any("Active" in t or "Suspended" in t for t in texts)
 
 
+def test_generate_layer_only_share(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "30", "--seed", "0", "--layer-only", "1"])
+    assert code == 0
+    texts = [json.loads(ln)["text"] for ln in capsys.readouterr().out.splitlines() if ln]
+    assert not any("active" in t or "suspended" in t for t in texts if "status" not in t)
+    assert any(t.split()[1] == "wells" for t in texts)
+
+
 def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     query = {
         "layers": ["Wells", "Pipelines"],
