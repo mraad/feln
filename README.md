@@ -64,6 +64,13 @@ uv run feln compare a.json b.json
 
 Pass `--sql` to add a DuckDB SQL string on each record.
 
+When a layer has subtype labels, they always supply the feature name in text,
+for both primary and spatial filter layers. For example, a subtype label `Hospitals` can produce `Show Hospitals`
+with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
+Additional conditions are ANDed with that subtype filter. Labels are kept as authored;
+no automatic pluralization or dataset-specific filters are added. Missing subtype
+metadata falls back to the layer alias and ordinary field conditions.
+
 ## Library
 
 ```python
@@ -87,6 +94,12 @@ sql = FELNToDuckDB()(
 Structural compare pins the primary layer, matches secondaries by name
 (order-independent), treats `within`/`inside` as the same kind, and scores
 distance relations in meters so `5 miles` and `8.05 kilometers` can agree.
+`FELNCompare.partial` is the graded version — layers matched at any position
+(a swapped primary keeps half credit), WHERE scored per predicate (a dropped
+conjunct ≈ 0.67, `OR` written as `AND` 0.75) — and `FELNCompare.cost(gold, pred,
+gold_ids, pred_ids)` turns it into a minimisable `[0, 1]` cost, blended 70/30 with
+OBJECTID jaccard when execution results are supplied. `identical()` parses as
+DuckDB, so identifiers are case-insensitive and `cast(2 as SMALLINT)` equals `2`.
 Semantic compare encodes one canonical string per FELN (sqlglot-normalized
 WHERE, parsed relations, secondaries sorted) and returns cosine similarity.
 

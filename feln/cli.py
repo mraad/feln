@@ -61,6 +61,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
     right = _load_feln(args.b)
     score = FELNCompare.structural(left, right)
     print(f"{score:.6f}")
+    if args.partial:
+        print(f"partial {FELNCompare.partial(left, right):.6f}")
     return 0
 
 
@@ -91,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     cmp_ = sub.add_parser("compare", help="structural similarity of two FELN JSON files")
     cmp_.add_argument("a", type=Path)
     cmp_.add_argument("b", type=Path)
+    cmp_.add_argument("--partial", action="store_true", help="also print the graded score")
     cmp_.set_defaults(func=cmd_compare)
     return parser
 

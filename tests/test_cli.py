@@ -52,6 +52,9 @@ def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     score = float(capsys.readouterr().out.strip())
     assert score == 1.0
 
+    assert main(["compare", "--partial", str(a), str(b)]) == 0
+    assert capsys.readouterr().out.splitlines() == ["1.000000", "partial 1.000000"]
+
 
 def test_generate_missing_catalog() -> None:
     assert main(["generate", "/no/such/Layers.json", "-n", "1"]) == 1

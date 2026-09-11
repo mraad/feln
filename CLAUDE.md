@@ -66,6 +66,24 @@ the same sqlglot normalize path as `identical()`, and prints relations as
 
 Weights stay 0.4 layers / 0.3 WHERE / 0.3 relations.
 
+`FELNCompare.partial` / `cost` are the optimisation-side scores and keep the
+same weights. `partial` differs from `structural` in two ways only: layers
+align by name at *any* position (a swapped primary scores `_SWAP_PENALTY`, not
+0) and WHERE credit is `where_credit` — DNF atoms `(columns, op, literals)`
+matched best-pair-first, F1 of atom credit (column 0.5 / op 0.25 / literal
+0.25, numeric literals by relative closeness), times `_SHAPE_PENALTY` when the
+OR-group count differs. `cost` is `1 - partial`, or `1 - (0.7 jaccard + 0.3
+partial)` when both OBJECTID sets are given, except when both sets are empty
+(jaccard is blind there). `pred=None` costs 1. Tests lock these values
+(dropped conjunct 2/3, AND↔OR 0.75, swap 0.5); do not loosen them.
+
+`identical()` / `normalize_where()` parse with `read="duckdb"` and strip
+`Cast(Literal)` before normalising: DuckDB identifiers are case-insensitive
+and `cast(2 as SMALLINT)`, `timestamp '…'`, `CAST(250 AS DOUBLE)` all compare
+as the bare literal. Without this every quoted or cast column from a compiler
+(`"Bank_Distance" < CAST(250 AS DOUBLE)`) scored 0 against `Bank_Distance <
+250`. String literals stay case-sensitive, as in DuckDB.
+
 ## SQL
 
 `FELNToDuckDB` is the only dialect. No-op relations (`kind == "none"`) skip

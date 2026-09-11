@@ -33,6 +33,10 @@ def _q(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def _coded_value(col: Column, code: str) -> str:
+    return f"cast({code} as {INT_TYPES[col.dtype]})" if col.dtype in INT_TYPES else _q(code)
+
+
 def _sampleable(col: Column) -> bool:
     return bool(col.keyval or col.values) or col.dtype in DATE_TYPES or col.dtype == "Double"
 
@@ -47,7 +51,7 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
     alias = col.alias or col.name.replace("_", " ")
     if col.keyval:
         code, label = rng.choice(list(col.keyval.items()))
-        sql_val = f"cast({code} as {INT_TYPES[col.dtype]})" if col.dtype in INT_TYPES else _q(code)
+        sql_val = _coded_value(col, code)
         if rng.random() < 0.15:
             return f"{alias} is not {label}", f"{col.name} <> {sql_val}"
         return f"{alias} is {label}", f"{col.name} = {sql_val}"
@@ -86,12 +90,12 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
         year = rng.randint(1970, 2020)
         op = rng.choices(["after", "before", "in"], [5, 3, 2])[0]
         if op == "after":
-            return f"{alias} after {year}", f"{col.name} > timestamp '{year}-01-01'"
+            return f"{alias} after {year}", f"{col.name} >= timestamp '{year + 1}-01-01'"
         if op == "before":
             return f"{alias} before {year}", f"{col.name} < timestamp '{year}-01-01'"
         return (
             f"{alias} in {year}",
-            f"{col.name} BETWEEN timestamp '{year}-01-01' AND timestamp '{year}-12-31'",
+            f"{col.name} >= timestamp '{year}-01-01' AND {col.name} < timestamp '{year + 1}-01-01'",
         )
     if _like_column(col) and col.values:
         value = rng.choice(col.values)
@@ -128,11 +132,13 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
     return f"{alias} is {value.lower()}", f"{col.name} = {_q(value)}"
 
 
-def where_clause(rng: random.Random, layer: Layer, n_conditions: int) -> tuple[str, str]:
-    cols = [c for c in layer.columns if _sampleable(c)]
+def where_clause(
+    rng: random.Random, layer: Layer, n_conditions: int, *, exclude: str = ""
+) -> tuple[str, str]:
+    cols = [c for c in layer.columns if c.name.casefold() != exclude.casefold() and _sampleable(c)]
     if not cols or n_conditions <= 0:
         return "", ""
-    n_conditions = min(n_conditions, len(cols))
+    n_conditions = min(n_conditions, len(cols), 2)
     parts = [condition(rng, c) for c in rng.sample(cols, n_conditions)]
     if len(parts) == 1:
         return parts[0]
@@ -144,6 +150,27 @@ def where_clause(rng: random.Random, layer: Layer, n_conditions: int) -> tuple[s
         )
     sql1, sql2 = (f"({s})" if " or " in s else s for s in (sql1, sql2))
     return f"{nl1} and {nl2}", f"{sql1} and {sql2}"
+
+
+def layer_phrase(rng: random.Random, layer: Layer, n_conditions: int) -> tuple[str, str, str]:
+    """A layer/subtype noun phrase, extra condition text, and its complete filter."""
+    subtype = next(
+        (
+            c
+            for c in layer.columns
+            if c.name.casefold() == (layer.subtype or "").casefold() and c.keyval
+        ),
+        None,
+    )
+    label = layer.alias or layer.name
+    if subtype is None:
+        nl, sql = where_clause(rng, layer, n_conditions)
+        return label, nl, sql
+    code, label = rng.choice(list(subtype.keyval.items()))
+    nl, sql = where_clause(rng, layer, max(0, n_conditions - 1), exclude=subtype.name)
+    predicate = f"{subtype.name} = {_coded_value(subtype, code)}"
+    # OR in an attribute filter must never allow another subtype through.
+    return label, nl, f"{predicate} and ({sql})" if sql else predicate
 
 
 def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str, str]:
@@ -185,10 +212,10 @@ def sample(rng: random.Random, layers: list[Layer]) -> tuple[str, FELN]:
     ]
     if n == 1 and n_conds[0] == 0:
         n_conds[0] = 1
-    nls, sqls = zip(
-        *(where_clause(rng, layer, k) for layer, k in zip(chosen, n_conds, strict=True))
+    labels, nls, sqls = zip(
+        *(layer_phrase(rng, layer, k) for layer, k in zip(chosen, n_conds, strict=True))
     )
-    text = [rng.choice(SHOW), chosen[0].alias or chosen[0].name]
+    text = [rng.choice(SHOW), labels[0]]
     if nls[0]:
         text += [
             "" if nls[0].startswith("with") else rng.choice(["where", "with", "whose"]),
@@ -201,7 +228,7 @@ def sample(rng: random.Random, layers: list[Layer]) -> tuple[str, FELN]:
         text += [
             "and" if i > 1 else "that are" if "Distance" in rel else "",
             rel_nl,
-            sec.alias or sec.name,
+            labels[i],
         ]
         if nls[i]:
             text += ["" if nls[i].startswith("with") else rng.choice(["where", "with"]), nls[i]]

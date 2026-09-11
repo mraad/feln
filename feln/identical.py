@@ -5,23 +5,39 @@ from __future__ import annotations
 import contextlib
 
 import sqlglot
+from sqlglot import exp
 from sqlglot.optimizer import optimize
 from sqlglot.optimizer.normalize import normalize
 
+DIALECT = "duckdb"
 
-def normalize_where(where: str) -> str:
+
+def _strip_literal_casts(node: exp.Expression) -> exp.Expression:
+    # ``cast(2 as SMALLINT)``, ``timestamp '1995-01-01'`` and ``CAST(250 AS DOUBLE)`` all
+    # compare like the bare literal in DuckDB; only the literal carries meaning.
+    if isinstance(node, exp.Cast) and isinstance(node.this, exp.Literal):
+        return node.this
+    return node
+
+
+def parse_where(where: str) -> exp.Expression:
+    """DuckDB-dialect AST of *where* with literal casts stripped. Raises on bad SQL."""
+    return sqlglot.parse_one(where, read=DIALECT).transform(_strip_literal_casts)
+
+
+def normalize_where(where: str, dnf: bool = False) -> str:
     """Return a canonical SQL form of *where*, or the stripped original on failure.
 
-    Empty / whitespace-only clauses become ``""``. ``timestamp `` prefixes that
-    ArcGIS-style catalogs emit are stripped before parsing so
-    ``col > timestamp '1995-01-01'`` and ``col > '1995-01-01'`` agree.
+    Empty / whitespace-only clauses become ``""``. Parsed as DuckDB, so identifiers
+    are case-insensitive (``Bank_Distance`` ≡ ``"bank_distance"``) and literal casts
+    are dropped (``cast(2 as SMALLINT)`` ≡ ``2``, ``timestamp '…'`` ≡ ``'…'``).
     """
     where = where.strip()
     if not where:
         return ""
     with contextlib.suppress(Exception):
-        parsed = sqlglot.parse_one(where.replace("timestamp ", ""))
-        return normalize(optimize(parsed), dnf=False).sql()
+        parsed = optimize(parse_where(where), dialect=DIALECT)
+        return normalize(parsed, dnf=dnf).sql(dialect=DIALECT)
     return where
 
 
