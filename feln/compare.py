@@ -3,6 +3,11 @@
 Structural: primary pinned, secondaries matched by name, sqlglot WHERE,
 distance in metres, ``within`` ≡ ``inside``. Weighted 40 / 30 / 30.
 
+Partial / cost: the same skeleton with graded credit — layers matched at any
+position (swapped primary costs half), WHERE scored per predicate instead of
+all-or-nothing — blended with OBJECTID jaccard when execution results exist.
+``cost`` is what an optimiser minimises; ``structural`` stays the report score.
+
 Semantic: one canonical string per FELN, one batched ``encode_document``,
 cosine of L2-normalised vectors.
 """
@@ -12,14 +17,20 @@ from __future__ import annotations
 from typing import Protocol
 
 import numpy as np
+from sqlglot import exp
+from sqlglot.optimizer import optimize
+from sqlglot.optimizer.normalize import normalize
 
-from .identical import identical, normalize_where
+from .identical import DIALECT, identical, normalize_where, parse_where
 from .model import DISTANCE_KINDS, FELN, Relation, canon_kind, parse_relation
 from .units import to_meters
 
 _LAYER_W = 0.4
 _WHERE_W = 0.3
 _REL_W = 0.3
+_SWAP_PENALTY = 0.5  # layer credit when the primary differs but the names overlap
+_SHAPE_PENALTY = 0.75  # WHERE credit when the OR-group count differs (AND ↔ OR)
+_EXEC_W = 0.7  # jaccard share of ``cost`` when both OBJECTID sets are known
 
 
 class Encoder(Protocol):
@@ -70,6 +81,104 @@ def _relation_credit(ra: Relation | None, rb: Relation | None) -> float:
         da, db = metres_a, metres_b
     denom = max(abs(da), abs(db), 1e-9)
     return 0.5 + 0.5 * (1.0 - min(1.0, abs(da - db) / denom))
+
+
+Atom = tuple[tuple[str, ...], str, tuple[str, ...]]  # (columns, operator, literals)
+
+
+def _atom(node: exp.Expression) -> Atom:
+    op = type(node).__name__
+    if isinstance(node, exp.Not):
+        op = "NOT " + type(node.this).__name__
+    elif node.args.get("negate"):  # sqlglot spells ``NOT LIKE`` as Like(negate=True)
+        op = "NOT " + op
+    cols = tuple(sorted(c.name.lower() for c in node.find_all(exp.Column)))
+    lits = tuple(lit.this for lit in node.find_all(exp.Literal))
+    return cols, op, lits
+
+
+def _groups(where: str) -> list[list[Atom]]:
+    """DNF of *where*: a list of AND-groups, each a list of atoms. Raises on bad SQL."""
+    tree = normalize(optimize(parse_where(where), dialect=DIALECT), dnf=True)
+    groups = tree.flatten() if isinstance(tree, exp.Or) else [tree]
+    return [
+        [_atom(a) for a in (g.flatten() if isinstance(g, exp.And) else [g])]
+        for g in (g.unnest() for g in groups)
+    ]
+
+
+def _lit_close(a: tuple[str, ...], b: tuple[str, ...]) -> float:
+    if a == b:
+        return 1.0
+    if len(a) == len(b) == 1:
+        try:
+            x, y = float(a[0]), float(b[0])
+        except ValueError:
+            return 0.0
+        return 1.0 - min(1.0, abs(x - y) / max(abs(x), abs(y), 1e-9))
+    return 0.0
+
+
+def _atom_credit(a: Atom, b: Atom) -> float:
+    return 0.5 * (a[0] == b[0]) + 0.25 * (a[1] == b[1]) + 0.25 * _lit_close(a[2], b[2])
+
+
+def where_credit(a: str, b: str) -> float:
+    """0..1 credit for two WHERE fragments, graded per predicate.
+
+    Both are put in DNF; atoms (column, operator, literal) are matched greedily by
+    best pair first, credit = F1 of matched atom credit. A different number of OR
+    groups (AND ↔ OR) multiplies by ``_SHAPE_PENALTY``. Unparseable input falls
+    back to ``identical``.
+    """
+    if identical(a, b):
+        return 1.0
+    try:
+        ga, gb = _groups(a) if a.strip() else [], _groups(b) if b.strip() else []
+    except Exception:
+        return 0.0
+    atoms_a = [x for g in ga for x in g]
+    atoms_b = [x for g in gb for x in g]
+    if not atoms_a or not atoms_b:
+        return 0.0
+    # ponytail: greedy best-pair-first over ≤8×8 atoms; Hungarian if a WHERE ever has more.
+    pairs = sorted(
+        ((_atom_credit(x, y), i, j) for i, x in enumerate(atoms_a) for j, y in enumerate(atoms_b)),
+        reverse=True,
+    )
+    used_a: set[int] = set()
+    used_b: set[int] = set()
+    hits = 0.0
+    for credit, i, j in pairs:
+        if credit == 0.0:
+            break
+        if i in used_a or j in used_b:
+            continue
+        used_a.add(i)
+        used_b.add(j)
+        hits += credit
+    f1 = 2.0 * hits / (len(atoms_a) + len(atoms_b))
+    return f1 * (_SHAPE_PENALTY if len(ga) != len(gb) else 1.0)
+
+
+def _align_any(a: FELN, b: FELN) -> list[tuple[int | None, int | None]]:
+    """Greedy name match over every position (primary included), padded with ``None``."""
+    pairs: list[tuple[int | None, int | None]] = []
+    unused = set(range(len(b.layers)))
+    for i, name in enumerate(a.layers):
+        key = name.strip().lower()
+        match = next((j for j in sorted(unused) if b.layers[j].strip().lower() == key), None)
+        if match is not None:
+            unused.remove(match)
+        pairs.append((i, match))
+    pairs.extend((None, j) for j in sorted(unused))
+    return pairs
+
+
+def _relation_at(feln: FELN, index: int | None) -> Relation | None:
+    if index is None or index == 0:
+        return None
+    return parse_relation(feln.relations[index - 1])
 
 
 def canonical_relation(rel: str) -> str:
@@ -165,6 +274,49 @@ class FELNCompare:
             relation_score = rel_hits / max_r
 
         return _LAYER_W * layer_score + _WHERE_W * where_score + _REL_W * relation_score
+
+    @staticmethod
+    def partial(a: FELN, b: FELN) -> float:
+        """``structural`` with graded credit: any-position layer match (swapped primary
+        keeps ``_SWAP_PENALTY``), per-predicate WHERE credit, relation credit. ``[0, 1]``."""
+        pairs = _align_any(a, b)
+        max_n = max(len(a.layers), len(b.layers))
+        matched = [(ia, ib) for ia, ib in pairs if ia is not None and ib is not None]
+        same_primary = a.layers[0].strip().lower() == b.layers[0].strip().lower()
+        layer_score = len(matched) / max_n * (1.0 if same_primary else _SWAP_PENALTY)
+        where_score = sum(where_credit(a.where[ia], b.where[ib]) for ia, ib in matched) / max_n
+        max_r = max(len(a.relations), len(b.relations))
+        if max_r == 0:
+            relation_score = 1.0
+        else:
+            rel_hits = sum(
+                _relation_credit(_relation_at(a, ia), _relation_at(b, ib))
+                for ia, ib in pairs
+                if not (ia == 0 and ib == 0)
+            )
+            relation_score = rel_hits / max_r
+        return _LAYER_W * layer_score + _WHERE_W * where_score + _REL_W * relation_score
+
+    @staticmethod
+    def cost(
+        gold: FELN,
+        pred: FELN | None,
+        gold_ids: set[int] | None = None,
+        pred_ids: set[int] | None = None,
+    ) -> float:
+        """Minimisable cost in ``[0, 1]``; 0 is a perfect answer.
+
+        ``pred is None`` (malformed or guard-rejected) costs 1. With both OBJECTID sets
+        the cost blends jaccard (``_EXEC_W``) with ``partial``; without them, or when
+        both sets are empty (jaccard is blind there), it is ``1 - partial``.
+        """
+        if pred is None:
+            return 1.0
+        struct = FELNCompare.partial(gold, pred)
+        if gold_ids is None or pred_ids is None or not (gold_ids or pred_ids):
+            return 1.0 - struct
+        jaccard = len(gold_ids & pred_ids) / len(gold_ids | pred_ids)
+        return 1.0 - (_EXEC_W * jaccard + (1.0 - _EXEC_W) * struct)
 
     @staticmethod
     def semantic(a: FELN, b: FELN, encoder: Encoder) -> float:

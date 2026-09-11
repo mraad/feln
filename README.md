@@ -94,6 +94,12 @@ sql = FELNToDuckDB()(
 Structural compare pins the primary layer, matches secondaries by name
 (order-independent), treats `within`/`inside` as the same kind, and scores
 distance relations in meters so `5 miles` and `8.05 kilometers` can agree.
+`FELNCompare.partial` is the graded version — layers matched at any position
+(a swapped primary keeps half credit), WHERE scored per predicate (a dropped
+conjunct ≈ 0.67, `OR` written as `AND` 0.75) — and `FELNCompare.cost(gold, pred,
+gold_ids, pred_ids)` turns it into a minimisable `[0, 1]` cost, blended 70/30 with
+OBJECTID jaccard when execution results are supplied. `identical()` parses as
+DuckDB, so identifiers are case-insensitive and `cast(2 as SMALLINT)` equals `2`.
 Semantic compare encodes one canonical string per FELN (sqlglot-normalized
 WHERE, parsed relations, secondaries sorted) and returns cosine similarity.
 
