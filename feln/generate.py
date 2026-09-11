@@ -8,6 +8,7 @@ from collections.abc import Iterable
 
 from layers_json.layers import Column, Layer, Layers
 
+from .identical import normalize_where
 from .model import FELN
 
 INT_TYPES = {"SmallInteger": "SMALLINT", "Integer": "INTEGER", "BigInteger": "BIGINT"}
@@ -224,8 +225,14 @@ def sample(
     *,
     alias_suffix: bool = False,
     layer_only: float = 0.0,
+    normalize: bool = False,
 ) -> tuple[str, FELN]:
-    """One templated sentence and a valid FELN drawn from *layers*."""
+    """One templated sentence and a valid FELN drawn from *layers*.
+
+    *normalize* writes each WHERE in the canonical ``normalize_where`` form that
+    ``identical()`` compares by: quoted lower-case identifiers, sorted conjuncts,
+    bare literals (``"content_type" = 2``, not ``content_type = cast(2 as SMALLINT)``).
+    """
     spatial = [layer for layer in layers if layer.stype in SPATIAL]
     pool = spatial or list(layers)
     max_n = min(3, len(pool))
@@ -261,7 +268,7 @@ def sample(
             text += ["" if nls[i].startswith("with") else rng.choice(["where", "with"]), nls[i]]
     meta = FELN(
         layers=[layer.name for layer in chosen],
-        where=list(sqls),
+        where=[normalize_where(s) for s in sqls] if normalize else list(sqls),
         relations=rels,
     )
     return " ".join(t for t in text if t), meta
@@ -275,6 +282,7 @@ def generate(
     max_attempts: int | None = None,
     alias_suffix: bool = False,
     layer_only: float = 0.0,
+    normalize: bool = False,
 ) -> list[dict]:
     """Draw *n* unique FELN metas. Each record is ``{"text", "meta"}``."""
     rng = random.Random(seed)
@@ -287,7 +295,9 @@ def generate(
     attempts = 0
     while len(records) < n and attempts < budget:
         attempts += 1
-        text, meta = sample(rng, layers, alias_suffix=alias_suffix, layer_only=layer_only)
+        text, meta = sample(
+            rng, layers, alias_suffix=alias_suffix, layer_only=layer_only, normalize=normalize
+        )
         key = json.dumps(meta.model_dump(), sort_keys=True)
         if key in seen:
             continue

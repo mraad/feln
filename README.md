@@ -62,7 +62,10 @@ uv run feln compare a.json b.json
 {"text": "Show wells that are within 5 kilometers of pipelines", "meta": {"layers": ["Wells", "Pipelines"], "where": ["", ""], "relations": ["withinDistance 5 kilometers"]}}
 ```
 
-Pass `--sql` to add a DuckDB SQL string on each record.
+Pass `--sql` to add a DuckDB SQL string on each record. `--normalize` writes each
+WHERE in the canonical `normalize_where` form `identical()` compares by — quoted
+lower-case identifiers, sorted conjuncts, bare literals: `"content_type" = 2 AND
+"countryname" LIKE '%Denmark%'`, not `content_type = cast(2 as SMALLINT) and (...)`.
 
 When a layer has subtype labels, they always supply the feature name in text,
 for both primary and spatial filter layers. For example, a subtype label `Hospitals` produces

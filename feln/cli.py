@@ -36,6 +36,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         seed=args.seed,
         alias_suffix=args.alias_suffix,
         layer_only=args.layer_only,
+        normalize=args.normalize,
     )
     if args.sql:
         for record in records:
@@ -97,6 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SHARE",
         help="share [0,1] of subtyped layers phrased by alias alone, no subtype filter "
         "(Show wells); default 0",
+    )
+    gen.add_argument(
+        "--normalize",
+        action="store_true",
+        help="canonical WHERE (normalize_where): quoted lower-case identifiers, sorted "
+        "conjuncts, bare literals",
     )
     gen.set_defaults(func=cmd_generate)
 

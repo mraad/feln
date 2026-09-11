@@ -44,6 +44,14 @@ def test_generate_layer_only_share(capsys) -> None:
     assert any(t.split()[1] == "wells" for t in texts)
 
 
+def test_generate_normalize_flag(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "20", "--seed", "0", "--normalize", "--sql"])
+    assert code == 0
+    rows = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln]
+    assert not any("cast(" in w.lower() for r in rows for w in r["meta"]["where"])
+    assert all("SELECT" in r["sql"] for r in rows)
+
+
 def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     query = {
         "layers": ["Wells", "Pipelines"],
