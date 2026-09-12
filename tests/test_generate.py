@@ -48,3 +48,18 @@ def test_calendar_year_conditions_have_complete_boundaries():
                 text, sql = condition(rng, column)
             assert text == f"entry date {op} 2005"
             assert sql == expected
+
+
+def test_normalize_writes_canonical_where(catalog: Layers) -> None:
+    from feln.identical import identical, normalize_where
+
+    raw = generate(catalog, 30, seed=3)
+    canon = generate(catalog, 30, seed=3, normalize=True)
+    assert [r["text"] for r in raw] == [r["text"] for r in canon]
+    for a, b in zip(raw, canon, strict=True):
+        for wa, wb in zip(a["meta"]["where"], b["meta"]["where"], strict=True):
+            assert wb == normalize_where(wa)
+            assert identical(wa, wb)
+            assert "cast(" not in wb.lower() and "timestamp" not in wb.lower()
+    assert any("cast(" in w for r in raw for w in r["meta"]["where"])
+    assert any('"' in w for r in canon for w in r["meta"]["where"])

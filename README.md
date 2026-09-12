@@ -62,14 +62,22 @@ uv run feln compare a.json b.json
 {"text": "Show wells that are within 5 kilometers of pipelines", "meta": {"layers": ["Wells", "Pipelines"], "where": ["", ""], "relations": ["withinDistance 5 kilometers"]}}
 ```
 
-Pass `--sql` to add a DuckDB SQL string on each record.
+Pass `--sql` to add a DuckDB SQL string on each record. `--normalize` writes each
+WHERE in the canonical `normalize_where` form `identical()` compares by — quoted
+lower-case identifiers, sorted conjuncts, bare literals: `"content_type" = 2 AND
+"countryname" LIKE '%Denmark%'`, not `content_type = cast(2 as SMALLINT) and (...)`.
 
 When a layer has subtype labels, they always supply the feature name in text,
-for both primary and spatial filter layers. For example, a subtype label `Hospitals` can produce `Show Hospitals`
-with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
-Additional conditions are ANDed with that subtype filter. Labels are kept as authored;
-no automatic pluralization or dataset-specific filters are added. Missing subtype
-metadata falls back to the layer alias and ordinary field conditions.
+for both primary and spatial filter layers. For example, a subtype label `Hospitals` produces
+`Show hospitals` with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
+Labels are lowercased in text; `--alias-suffix` (`generate(..., alias_suffix=True)`) appends the
+layer alias — `Show oil discoveries`, `List all dry wells` — which disambiguates labels shared
+across layers. Leave it off when the alias is not a noun (`master`). `--layer-only 0.25`
+(`layer_only=0.25`) phrases that share of subtyped layers by alias alone — `Show wells`,
+`List pipelines` — with no subtype filter, and the subtype column then competes as an
+ordinary condition (`wells where content type is DRY`). Additional conditions are ANDed
+with the subtype filter; no pluralization or dataset-specific filters are added. Missing
+subtype metadata falls back to the layer alias and ordinary field conditions.
 
 ## Library
 

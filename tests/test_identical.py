@@ -38,3 +38,8 @@ def test_different(left: str, right: str) -> None:
 def test_normalize_falls_back_on_bad_sql() -> None:
     assert normalize_where("garbage (((") == "garbage ((("
     assert normalize_where("   ") == ""
+
+
+def test_negative_literal_cast_is_stripped():
+    assert identical("discovery_type = cast(-1 as INTEGER)", "discovery_type = -1")
+    assert not identical("discovery_type = cast(-1 as INTEGER)", "discovery_type = 1")

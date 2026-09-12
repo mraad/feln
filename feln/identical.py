@@ -15,7 +15,10 @@ DIALECT = "duckdb"
 def _strip_literal_casts(node: exp.Expression) -> exp.Expression:
     # ``cast(2 as SMALLINT)``, ``timestamp '1995-01-01'`` and ``CAST(250 AS DOUBLE)`` all
     # compare like the bare literal in DuckDB; only the literal carries meaning.
-    if isinstance(node, exp.Cast) and isinstance(node.this, exp.Literal):
+    inner = node.this if isinstance(node, exp.Cast) else None
+    if isinstance(inner, exp.Neg):  # ``cast(-1 as INTEGER)`` parses as Cast(Neg(Literal))
+        inner = inner.this
+    if isinstance(inner, exp.Literal):
         return node.this
     return node
 

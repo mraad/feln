@@ -28,6 +28,30 @@ def test_generate_sql_flag(capsys) -> None:
     assert "FROM" in row["sql"]
 
 
+def test_generate_alias_suffix_flag(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "20", "--seed", "0", "--alias-suffix"])
+    assert code == 0
+    texts = [json.loads(ln)["text"] for ln in capsys.readouterr().out.splitlines() if ln]
+    assert any("active wells" in t or "suspended wells" in t for t in texts)
+    assert not any("Active" in t or "Suspended" in t for t in texts)
+
+
+def test_generate_layer_only_share(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "30", "--seed", "0", "--layer-only", "1"])
+    assert code == 0
+    texts = [json.loads(ln)["text"] for ln in capsys.readouterr().out.splitlines() if ln]
+    assert not any("active" in t or "suspended" in t for t in texts if "status" not in t)
+    assert any(t.split()[1] == "wells" for t in texts)
+
+
+def test_generate_normalize_flag(capsys) -> None:
+    code = main(["generate", str(FIXTURE), "-n", "20", "--seed", "0", "--normalize", "--sql"])
+    assert code == 0
+    rows = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln]
+    assert not any("cast(" in w.lower() for r in rows for w in r["meta"]["where"])
+    assert all("SELECT" in r["sql"] for r in rows)
+
+
 def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     query = {
         "layers": ["Wells", "Pipelines"],
@@ -54,6 +78,11 @@ def test_sql_and_compare(tmp_path: Path, capsys) -> None:
 
     assert main(["compare", "--partial", str(a), str(b)]) == 0
     assert capsys.readouterr().out.splitlines() == ["1.000000", "partial 1.000000"]
+
+
+def test_generate_layer_only_out_of_range(capsys) -> None:
+    assert main(["generate", str(FIXTURE), "-n", "1", "--layer-only", "2"]) == 1
+    assert "layer_only must be within [0, 1]" in capsys.readouterr().err
 
 
 def test_generate_missing_catalog() -> None:

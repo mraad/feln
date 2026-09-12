@@ -30,7 +30,14 @@ def _load_catalog(path: Path) -> Layers:
 
 def cmd_generate(args: argparse.Namespace) -> int:
     catalog = _load_catalog(args.layers_json)
-    records = generate(catalog, args.n, seed=args.seed)
+    records = generate(
+        catalog,
+        args.n,
+        seed=args.seed,
+        alias_suffix=args.alias_suffix,
+        layer_only=args.layer_only,
+        normalize=args.normalize,
+    )
     if args.sql:
         for record in records:
             record["sql"] = feln_to_sql(FELN.model_validate(record["meta"]), catalog)
@@ -79,6 +86,25 @@ def build_parser() -> argparse.ArgumentParser:
     gen.add_argument("-o", "--out", type=Path, default=None, help="jsonl path (default: stdout)")
     gen.add_argument("--seed", type=int, default=0)
     gen.add_argument("--sql", action="store_true", help="add DuckDB SQL on each record")
+    gen.add_argument(
+        "--alias-suffix",
+        action="store_true",
+        help="append the layer alias to subtype labels in text (oil discoveries, dry wells)",
+    )
+    gen.add_argument(
+        "--layer-only",
+        type=float,
+        default=0.0,
+        metavar="SHARE",
+        help="share [0,1] of subtyped layers phrased by alias alone, no subtype filter "
+        "(Show wells); default 0",
+    )
+    gen.add_argument(
+        "--normalize",
+        action="store_true",
+        help="canonical WHERE (normalize_where): quoted lower-case identifiers, sorted "
+        "conjuncts, bare literals",
+    )
     gen.set_defaults(func=cmd_generate)
 
     sql = sub.add_parser("sql", help="compile one FELN JSON file to DuckDB spatial SQL")

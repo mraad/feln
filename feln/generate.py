@@ -8,6 +8,7 @@ from collections.abc import Iterable
 
 from layers_json.layers import Column, Layer, Layers
 
+from .identical import normalize_where
 from .model import FELN
 
 INT_TYPES = {"SmallInteger": "SMALLINT", "Integer": "INTEGER", "BigInteger": "BIGINT"}
@@ -152,8 +153,25 @@ def where_clause(
     return f"{nl1} and {nl2}", f"{sql1} and {sql2}"
 
 
-def layer_phrase(rng: random.Random, layer: Layer, n_conditions: int) -> tuple[str, str, str]:
-    """A layer/subtype noun phrase, extra condition text, and its complete filter."""
+def layer_phrase(
+    rng: random.Random,
+    layer: Layer,
+    n_conditions: int,
+    *,
+    alias_suffix: bool = False,
+    layer_only: float = 0.0,
+) -> tuple[str, str, str]:
+    """A layer/subtype noun phrase, extra condition text, and its complete filter.
+
+    Subtype labels are lowercased; *alias_suffix* appends the layer alias
+    (``oil discoveries``, ``dry wells``) so labels shared across layers stay
+    unambiguous. Leave it off when the alias is not a noun (sample-catalog ``master``).
+    *layer_only* is the share of subtyped layers phrased by alias alone
+    (``Show wells``) with no subtype filter; the subtype column is then an
+    ordinary condition candidate (``wells where content type is DRY``).
+    """
+    if not 0 <= layer_only <= 1:
+        raise ValueError(f"layer_only must be within [0, 1], got {layer_only}")
     subtype = next(
         (
             c
@@ -162,15 +180,18 @@ def layer_phrase(rng: random.Random, layer: Layer, n_conditions: int) -> tuple[s
         ),
         None,
     )
-    label = layer.alias or layer.name
-    if subtype is None:
+    alias = (layer.alias or layer.name).lower()
+    if subtype is None or (layer_only and rng.random() < layer_only):
         nl, sql = where_clause(rng, layer, n_conditions)
-        return label, nl, sql
+        return alias, nl, sql
     code, label = rng.choice(list(subtype.keyval.items()))
+    noun = label.lower()
+    if alias_suffix and not noun.endswith(alias):
+        noun = f"{noun} {alias}"
     nl, sql = where_clause(rng, layer, max(0, n_conditions - 1), exclude=subtype.name)
     predicate = f"{subtype.name} = {_coded_value(subtype, code)}"
     # OR in an attribute filter must never allow another subtype through.
-    return label, nl, f"{predicate} and ({sql})" if sql else predicate
+    return noun, nl, f"{predicate} and ({sql})" if sql else predicate
 
 
 def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str, str]:
@@ -200,8 +221,20 @@ def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str,
     )
 
 
-def sample(rng: random.Random, layers: list[Layer]) -> tuple[str, FELN]:
-    """One templated sentence and a valid FELN drawn from *layers*."""
+def sample(
+    rng: random.Random,
+    layers: list[Layer],
+    *,
+    alias_suffix: bool = False,
+    layer_only: float = 0.0,
+    normalize: bool = False,
+) -> tuple[str, FELN]:
+    """One templated sentence and a valid FELN drawn from *layers*.
+
+    *normalize* writes each WHERE in the canonical ``normalize_where`` form that
+    ``identical()`` compares by: quoted lower-case identifiers, sorted conjuncts,
+    bare literals (``"content_type" = 2``, not ``content_type = cast(2 as SMALLINT)``).
+    """
     spatial = [layer for layer in layers if layer.stype in SPATIAL]
     pool = spatial or list(layers)
     max_n = min(3, len(pool))
@@ -213,7 +246,10 @@ def sample(rng: random.Random, layers: list[Layer]) -> tuple[str, FELN]:
     if n == 1 and n_conds[0] == 0:
         n_conds[0] = 1
     labels, nls, sqls = zip(
-        *(layer_phrase(rng, layer, k) for layer, k in zip(chosen, n_conds, strict=True))
+        *(
+            layer_phrase(rng, layer, k, alias_suffix=alias_suffix, layer_only=layer_only)
+            for layer, k in zip(chosen, n_conds, strict=True)
+        )
     )
     text = [rng.choice(SHOW), labels[0]]
     if nls[0]:
@@ -234,7 +270,7 @@ def sample(rng: random.Random, layers: list[Layer]) -> tuple[str, FELN]:
             text += ["" if nls[i].startswith("with") else rng.choice(["where", "with"]), nls[i]]
     meta = FELN(
         layers=[layer.name for layer in chosen],
-        where=list(sqls),
+        where=[normalize_where(s) for s in sqls] if normalize else list(sqls),
         relations=rels,
     )
     return " ".join(t for t in text if t), meta
@@ -246,6 +282,9 @@ def generate(
     *,
     seed: int = 0,
     max_attempts: int | None = None,
+    alias_suffix: bool = False,
+    layer_only: float = 0.0,
+    normalize: bool = False,
 ) -> list[dict]:
     """Draw *n* unique FELN metas. Each record is ``{"text", "meta"}``."""
     rng = random.Random(seed)
@@ -258,7 +297,9 @@ def generate(
     attempts = 0
     while len(records) < n and attempts < budget:
         attempts += 1
-        text, meta = sample(rng, layers)
+        text, meta = sample(
+            rng, layers, alias_suffix=alias_suffix, layer_only=layer_only, normalize=normalize
+        )
         key = json.dumps(meta.model_dump(), sort_keys=True)
         if key in seen:
             continue
