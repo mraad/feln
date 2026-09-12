@@ -129,8 +129,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.cmd == "generate" and args.n < 1:
         parser.error("-n must be at least 1")
-    if args.cmd == "generate" and not 0 <= args.layer_only <= 1:
-        parser.error("--layer-only must be within [0, 1]")
     try:
         return args.func(args)
     except FileNotFoundError as exc:

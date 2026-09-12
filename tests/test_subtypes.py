@@ -3,6 +3,8 @@
 import random
 from unittest.mock import patch
 
+import pytest
+
 from feln import FELN, Column, Layer, Layers
 from feln.generate import generate, layer_phrase, sample
 from feln.sql import feln_to_sql
@@ -60,6 +62,9 @@ def test_alias_suffix_follows_lowercased_label():
 
 def test_layer_only_names_the_whole_layer_without_a_subtype_filter():
     layer = subtype_layer()
+    for bad in (-0.1, 1.5):
+        with pytest.raises(ValueError, match="layer_only"):
+            layer_phrase(random.Random(1), layer, 1, layer_only=bad)
     assert layer_phrase(random.Random(1), layer, 0, layer_only=1.0) == ("places", "", "")
     phrases = set()
     for seed in range(40):

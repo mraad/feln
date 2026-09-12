@@ -80,5 +80,10 @@ def test_sql_and_compare(tmp_path: Path, capsys) -> None:
     assert capsys.readouterr().out.splitlines() == ["1.000000", "partial 1.000000"]
 
 
+def test_generate_layer_only_out_of_range(capsys) -> None:
+    assert main(["generate", str(FIXTURE), "-n", "1", "--layer-only", "2"]) == 1
+    assert "layer_only must be within [0, 1]" in capsys.readouterr().err
+
+
 def test_generate_missing_catalog() -> None:
     assert main(["generate", "/no/such/Layers.json", "-n", "1"]) == 1

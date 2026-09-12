@@ -170,6 +170,8 @@ def layer_phrase(
     (``Show wells``) with no subtype filter; the subtype column is then an
     ordinary condition candidate (``wells where content type is DRY``).
     """
+    if not 0 <= layer_only <= 1:
+        raise ValueError(f"layer_only must be within [0, 1], got {layer_only}")
     subtype = next(
         (
             c
