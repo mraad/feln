@@ -74,6 +74,7 @@ def test_numeric_less_than_variants_preserve_types_and_boundaries():
 
     for dtype, value, sql_type in [
         ("Double", "5.0", "DOUBLE PRECISION"),
+        ("SmallInteger", "5", "SMALLINT"),
         ("Integer", "5", "INTEGER"),
         ("BigInteger", "9007199254740993", "BIGINT"),
     ]:
