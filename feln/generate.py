@@ -77,9 +77,9 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
         value = rng.choice(pool)
         word, sym = {
             "gt": ("more than", ">"),
-            "lt": (rng.choice(["less than", "under", "no more than"]), "<"),
+            "lt": (rng.choice(["less than", "under"]), "<"),
             "ge": ("at least", ">="),
-            "le": ("at most", "<="),
+            "le": (rng.choice(["at most", "no more than"]), "<="),
             "eq": ("equal to", "="),
         }[op]
         return (
