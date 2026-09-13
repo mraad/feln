@@ -63,3 +63,66 @@ def test_normalize_writes_canonical_where(catalog: Layers) -> None:
             assert "cast(" not in wb.lower() and "timestamp" not in wb.lower()
     assert any("cast(" in w for r in raw for w in r["meta"]["where"])
     assert any('"' in w for r in canon for w in r["meta"]["where"])
+
+
+def test_numeric_less_than_variants_preserve_types_and_boundaries():
+    import random
+    from unittest.mock import patch
+
+    from feln import Column
+    from feln.generate import condition
+
+    for dtype, value, sql_type in [
+        ("Double", "5.0", "DOUBLE PRECISION"),
+        ("Integer", "5", "INTEGER"),
+        ("BigInteger", "9007199254740993", "BIGINT"),
+    ]:
+        col = Column(name="amount", dtype=dtype, values=[value])
+        seen = set()
+        for seed in range(40):
+            rng = random.Random(seed)
+            with patch.object(rng, "choices", return_value=["lt"]):
+                text, sql = condition(rng, col)
+            assert sql == f"amount < cast({value} as {sql_type})"
+            seen.add(text)
+        assert any("no more than" in text for text in seen)
+        assert any("less than" in text for text in seen)
+        assert any("under" in text for text in seen)
+
+
+def test_distance_variants_keep_relation(catalog):
+    import random
+    from unittest.mock import patch
+
+    from feln.generate import relation
+
+    seen = set()
+    for seed in range(40):
+        rng = random.Random(seed)
+        with patch.object(rng, "choices", side_effect=[["withinDistance"], ["miles"]]):
+            text, meta = relation(rng, *list(catalog.layers)[:2])
+        distance = meta.split()[1]
+        assert text in {
+            f"within {distance} miles of",
+            f"less than {distance} miles from",
+            f"no more than {distance} miles from",
+        }
+        seen.add(text.split()[0])
+    assert seen == {"within", "less", "no"}
+
+
+def test_numeric_inclusive_and_boolean_conditions():
+    import random
+    from unittest.mock import patch
+
+    from feln import Column
+    from feln.generate import condition
+
+    rng = random.Random(0)
+    with patch.object(rng, "choices", return_value=["le"]):
+        text, sql = condition(rng, Column(name="count", dtype="Integer", values=["5"]))
+    assert text == "count is at most 5"
+    assert sql == "count <= cast(5 as INTEGER)"
+    text, sql = condition(rng, Column(name="logs", dtype="Integer", values=["0", "1"]))
+    assert text in {"with logs", "without logs"}
+    assert sql in {"logs = cast(0 as INTEGER)", "logs = cast(1 as INTEGER)"}

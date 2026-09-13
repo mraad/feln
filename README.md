@@ -79,6 +79,15 @@ ordinary condition (`wells where content type is DRY`). Additional conditions ar
 with the subtype filter; no pluralization or dataset-specific filters are added. Missing
 subtype metadata falls back to the layer alias and ordinary field conditions.
 
+`--ignore-subtype` (`ignore_subtype=True`) uses layer aliases and excludes the
+subtype column from all conditions, on primary and secondary layers.
+
+Numeric comparisons cover decimals and non-boolean integers. “No more than”
+and “under” are sampled as alternatives to “less than” (`<`, by this generator's
+convention); “at most” retains `<=`. Distance text also samples “less than” and
+“no more than”, represented by `withinDistance` (the existing SQL compiler uses
+`ST_DWithin`, including the distance boundary).
+
 ## Library
 
 ```python

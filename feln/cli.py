@@ -36,6 +36,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         seed=args.seed,
         alias_suffix=args.alias_suffix,
         layer_only=args.layer_only,
+        ignore_subtype=args.ignore_subtype,
         normalize=args.normalize,
     )
     if args.sql:
@@ -98,6 +99,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SHARE",
         help="share [0,1] of subtyped layers phrased by alias alone, no subtype filter "
         "(Show wells); default 0",
+    )
+    gen.add_argument(
+        "--ignore-subtype",
+        action="store_true",
+        help="use layer aliases and exclude subtype columns from all conditions",
     )
     gen.add_argument(
         "--normalize",

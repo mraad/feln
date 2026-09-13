@@ -56,8 +56,14 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
         if rng.random() < 0.15:
             return f"{alias} is not {label}", f"{col.name} <> {sql_val}"
         return f"{alias} is {label}", f"{col.name} = {sql_val}"
-    if col.dtype == "Double":
-        pool = [float(v) for v in col.values] or [10.0, 20.0, 50.0, 100.0]
+    if col.dtype in INT_TYPES and col.values and set(col.values) <= {"0", "1"}:
+        flag = rng.choice([1, 1, 0])
+        nl = f"with {alias}" if flag else f"without {alias}"
+        return nl, f"{col.name} = cast({flag} as {INT_TYPES[col.dtype]})"
+    if col.dtype == "Double" or col.dtype in INT_TYPES:
+        numeric = float if col.dtype == "Double" else int
+        sql_type = "DOUBLE PRECISION" if col.dtype == "Double" else INT_TYPES[col.dtype]
+        pool = [numeric(v) for v in col.values] or [10, 20, 50, 100]
         unit = f" {col.utype}" if col.utype else ""
         op = rng.choices(["gt", "lt", "ge", "le", "eq", "between"], [4, 3, 2, 2, 1, 2])[0]
         if op == "between" and len(set(pool)) < 2:
@@ -65,28 +71,21 @@ def condition(rng: random.Random, col: Column) -> tuple[str, str]:
         if op == "between":
             left, right = sorted(rng.sample(list(set(pool)), 2))
             return (
-                f"{alias} between {left:g} and {right:g}{unit}",
-                f"{col.name} BETWEEN {float(left)} AND {float(right)}",
+                f"{alias} is between {left} and {right}{unit}",
+                f"{col.name} BETWEEN {left} AND {right}",
             )
         value = rng.choice(pool)
         word, sym = {
             "gt": ("more than", ">"),
-            "lt": ("less than", "<"),
+            "lt": (rng.choice(["less than", "under", "no more than"]), "<"),
             "ge": ("at least", ">="),
             "le": ("at most", "<="),
             "eq": ("equal to", "="),
         }[op]
         return (
-            f"{alias} {word} {value:g}{unit}",
-            f"{col.name} {sym} cast({float(value)} as DOUBLE PRECISION)",
+            f"{alias} is {word} {value}{unit}",
+            f"{col.name} {sym} cast({value} as {sql_type})",
         )
-    if col.dtype in INT_TYPES:
-        if set(col.values) <= {"0", "1"}:
-            flag = rng.choice([1, 1, 0])
-            nl = f"with {alias}" if flag else f"without {alias}"
-            return nl, f"{col.name} = cast({flag} as {INT_TYPES[col.dtype]})"
-        value = rng.choice(col.values or ["1"])
-        return f"{alias} is {value}", f"{col.name} = cast({value} as {INT_TYPES[col.dtype]})"
     if col.dtype in DATE_TYPES:
         year = rng.randint(1970, 2020)
         op = rng.choices(["after", "before", "in"], [5, 3, 2])[0]
@@ -160,6 +159,7 @@ def layer_phrase(
     *,
     alias_suffix: bool = False,
     layer_only: float = 0.0,
+    ignore_subtype: bool = False,
 ) -> tuple[str, str, str]:
     """A layer/subtype noun phrase, extra condition text, and its complete filter.
 
@@ -169,6 +169,7 @@ def layer_phrase(
     *layer_only* is the share of subtyped layers phrased by alias alone
     (``Show wells``) with no subtype filter; the subtype column is then an
     ordinary condition candidate (``wells where content type is DRY``).
+    *ignore_subtype* uses the alias and excludes the subtype column entirely.
     """
     if not 0 <= layer_only <= 1:
         raise ValueError(f"layer_only must be within [0, 1], got {layer_only}")
@@ -181,6 +182,9 @@ def layer_phrase(
         None,
     )
     alias = (layer.alias or layer.name).lower()
+    if ignore_subtype:
+        nl, sql = where_clause(rng, layer, n_conditions, exclude=layer.subtype or "")
+        return alias, nl, sql
     if subtype is None or (layer_only and rng.random() < layer_only):
         nl, sql = where_clause(rng, layer, n_conditions)
         return alias, nl, sql
@@ -214,7 +218,9 @@ def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str,
     if rng.random() < 0.1:
         distance = distance + 0.5
     if kind == "withinDistance":
-        return f"within {distance:g} {unit} of", f"withinDistance {distance:g} {unit}"
+        phrase = rng.choice(["within", "less than", "no more than"])
+        tail = "of" if phrase == "within" else "from"
+        return f"{phrase} {distance:g} {unit} {tail}", f"withinDistance {distance:g} {unit}"
     return (
         f"more than {distance:g} {unit} away from any",
         f"notWithinDistance {distance:g} {unit}",
@@ -227,6 +233,7 @@ def sample(
     *,
     alias_suffix: bool = False,
     layer_only: float = 0.0,
+    ignore_subtype: bool = False,
     normalize: bool = False,
 ) -> tuple[str, FELN]:
     """One templated sentence and a valid FELN drawn from *layers*.
@@ -247,14 +254,21 @@ def sample(
         n_conds[0] = 1
     labels, nls, sqls = zip(
         *(
-            layer_phrase(rng, layer, k, alias_suffix=alias_suffix, layer_only=layer_only)
+            layer_phrase(
+                rng,
+                layer,
+                k,
+                alias_suffix=alias_suffix,
+                layer_only=layer_only,
+                ignore_subtype=ignore_subtype,
+            )
             for layer, k in zip(chosen, n_conds, strict=True)
         )
     )
     text = [rng.choice(SHOW), labels[0]]
     if nls[0]:
         text += [
-            "" if nls[0].startswith("with") else rng.choice(["where", "with", "whose"]),
+            "" if nls[0].startswith("with") else "where",
             nls[0],
         ]
     rels: list[str] = []
@@ -267,7 +281,7 @@ def sample(
             labels[i],
         ]
         if nls[i]:
-            text += ["" if nls[i].startswith("with") else rng.choice(["where", "with"]), nls[i]]
+            text += ["" if nls[i].startswith("with") else "where", nls[i]]
     meta = FELN(
         layers=[layer.name for layer in chosen],
         where=[normalize_where(s) for s in sqls] if normalize else list(sqls),
@@ -284,6 +298,7 @@ def generate(
     max_attempts: int | None = None,
     alias_suffix: bool = False,
     layer_only: float = 0.0,
+    ignore_subtype: bool = False,
     normalize: bool = False,
 ) -> list[dict]:
     """Draw *n* unique FELN metas. Each record is ``{"text", "meta"}``."""
@@ -298,7 +313,12 @@ def generate(
     while len(records) < n and attempts < budget:
         attempts += 1
         text, meta = sample(
-            rng, layers, alias_suffix=alias_suffix, layer_only=layer_only, normalize=normalize
+            rng,
+            layers,
+            alias_suffix=alias_suffix,
+            layer_only=layer_only,
+            ignore_subtype=ignore_subtype,
+            normalize=normalize,
         )
         key = json.dumps(meta.model_dump(), sort_keys=True)
         if key in seen:

@@ -87,3 +87,21 @@ def test_generate_layer_only_out_of_range(capsys) -> None:
 
 def test_generate_missing_catalog() -> None:
     assert main(["generate", "/no/such/Layers.json", "-n", "1"]) == 1
+
+
+def test_ignore_subtype_excludes_primary_and_secondary_filters(capsys):
+    from feln import Layers
+
+    assert main(["generate", str(FIXTURE), "-n", "100", "--ignore-subtype", "--normalize"]) == 0
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    catalog = Layers.load(str(FIXTURE))
+    positions = set()
+    for row in rows:
+        for i, (name, where) in enumerate(
+            zip(row["meta"]["layers"], row["meta"]["where"], strict=True)
+        ):
+            subtype = catalog.find_layer(name).subtype
+            if subtype:
+                assert subtype.casefold() not in where.casefold()
+                positions.add(i)
+    assert positions >= {0, 1}
