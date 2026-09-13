@@ -83,8 +83,10 @@ subtype metadata falls back to the layer alias and ordinary field conditions.
 subtype column from all conditions, on primary and secondary layers.
 
 Numeric comparisons cover decimals and non-boolean integers. “No more than”
-and “under” are sampled as alternatives to “less than” (`<`, by this generator's
-convention); “at most” retains `<=`. Distance text also samples “less than” and
+and “at most” generate `<=`, including equality at the boundary. “Under” and
+“less than” generate strict `<`. Previously generated datasets using the old
+“no more than” → `<` mapping must be regenerated or audited; this fix does not
+rewrite existing files. Distance text also samples “less than” and
 “no more than”, represented by `withinDistance` (the existing SQL compiler uses
 `ST_DWithin`, including the distance boundary).
 

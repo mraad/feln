@@ -74,6 +74,7 @@ def test_numeric_less_than_variants_preserve_types_and_boundaries():
 
     for dtype, value, sql_type in [
         ("Double", "5.0", "DOUBLE PRECISION"),
+        ("SmallInteger", "5", "SMALLINT"),
         ("Integer", "5", "INTEGER"),
         ("BigInteger", "9007199254740993", "BIGINT"),
     ]:
@@ -85,7 +86,7 @@ def test_numeric_less_than_variants_preserve_types_and_boundaries():
                 text, sql = condition(rng, col)
             assert sql == f"amount < cast({value} as {sql_type})"
             seen.add(text)
-        assert any("no more than" in text for text in seen)
+        assert all("no more than" not in text for text in seen)
         assert any("less than" in text for text in seen)
         assert any("under" in text for text in seen)
 
@@ -121,8 +122,34 @@ def test_numeric_inclusive_and_boolean_conditions():
     rng = random.Random(0)
     with patch.object(rng, "choices", return_value=["le"]):
         text, sql = condition(rng, Column(name="count", dtype="Integer", values=["5"]))
-    assert text == "count is at most 5"
+    assert text in {"count is at most 5", "count is no more than 5"}
     assert sql == "count <= cast(5 as INTEGER)"
     text, sql = condition(rng, Column(name="logs", dtype="Integer", values=["0", "1"]))
     assert text in {"with logs", "without logs"}
     assert sql in {"logs = cast(0 as INTEGER)", "logs = cast(1 as INTEGER)"}
+
+
+def test_no_more_than_is_inclusive_for_every_numeric_type():
+    import random
+    from unittest.mock import patch
+
+    from feln import Column
+    from feln.generate import condition
+    from feln.identical import normalize_where
+
+    for dtype, value, sql_type in [
+        ("Double", "71.0", "DOUBLE PRECISION"),
+        ("SmallInteger", "71", "SMALLINT"),
+        ("Integer", "71", "INTEGER"),
+        ("BigInteger", "9007199254740993", "BIGINT"),
+    ]:
+        col = Column(name="amount", dtype=dtype, values=[value])
+        seen = set()
+        for seed in range(40):
+            rng = random.Random(seed)
+            with patch.object(rng, "choices", return_value=["le"]):
+                text, sql = condition(rng, col)
+            assert sql == f"amount <= cast({value} as {sql_type})"
+            assert " <= " in normalize_where(sql)
+            seen.add(text)
+        assert seen == {f"amount is at most {value}", f"amount is no more than {value}"}
