@@ -37,8 +37,8 @@ Spatial "no more than" already maps to `withinDistance` / inclusive
 
 Read-only inspection of both source archives:
 
-- `${HOME}/Documents/ArcGIS/Projects/NorthSea/NorthSea.aprx`
-- `${HOME}/Documents/ArcGIS/Projects/NorthSea/NorthSea.updated.aprx`
+- `~/Documents/ArcGIS/Projects/NorthSea/NorthSea.aprx`
+- `~/Documents/ArcGIS/Projects/NorthSea/NorthSea.updated.aprx`
 
 In each ZIP, `Map/Wells.json` → `featureTable.fieldDescriptions` contains:
 

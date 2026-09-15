@@ -15,9 +15,9 @@ uv run feln compare a.json b.json
 ```
 
 Runtime dependencies are pydantic, sqlglot, numpy, and `layers-json[model]`
-pinned to a commit of the private layers-json repo — the `model` extra is the
-catalog model this package imports. Installing needs GitHub credentials; the
-pin means a local edit in `../layers-json` is invisible here until it is pushed
+pinned to a commit of the public [layers-json](https://github.com/mraad/layers-json)
+repo — the `model` extra is the catalog model this package imports. No credentials
+are needed; the pin means a local edit in `../layers-json` is invisible here until it is pushed
 and the `rev` bumped. To work across both, `uv pip install -e ../layers-json`
 and then run with `uv run --no-sync` — a plain `uv run` re-syncs and silently
 restores the pin. GDAL is **not** required: this project reads `Layers.json`, it
@@ -84,6 +84,11 @@ as the bare literal. Without this every quoted or cast column from a compiler
 (`"Bank_Distance" < CAST(250 AS DOUBLE)`) scored 0 against `Bank_Distance <
 250`. String literals stay case-sensitive, as in DuckDB.
 
+Normalization caches at most 4,096 immutable strings; do not cache mutable ASTs.
+Keep the final simplification after normalization: expanding ORs of BETWEEN
+ranges can otherwise leave conjuncts in a different order on the second pass.
+Graded literal comparison must retain unary minus (`x > -5` is not `x > 5`).
+
 ## SQL
 
 `FELNToDuckDB` is the only dialect. No-op relations (`kind == "none"`) skip
@@ -101,8 +106,17 @@ and does not need DuckDB. NorthSea-specific skip lists do not belong here.
 If you add a new relation kind, teach `model.parse_relation`, `compare`,
 `sql._on_clause`, and `generate.relation` in the same change.
 
+`withinDistance` includes equality, so its text uses only "within" or "no more
+than", never strict "less than". Table-only catalogs sample one layer per query
+to avoid generating spatial relations without geometry.
+
 ## Testing notes
 
+- NorthSea is the only named project referenced in this repository. Keep other
+  projects' reports and derived artifacts in their respective project folders;
+  shared code and regression cases remain catalog-independent.
+- Use `$HOME` in shell examples and `~` in descriptive paths; never commit
+  personal home-directory names, credentials, or real personal records in fixtures.
 - `tests/fixtures/layers.json` is a hand-written catalog in the Layers.pyt
   byte shape. Prefer it over a live ArcGIS project.
 - `test_layers.py` covers the fixture contract only. The producer→consumer

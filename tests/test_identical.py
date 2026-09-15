@@ -43,3 +43,10 @@ def test_normalize_falls_back_on_bad_sql() -> None:
 def test_negative_literal_cast_is_stripped():
     assert identical("discovery_type = cast(-1 as INTEGER)", "discovery_type = -1")
     assert not identical("discovery_type = cast(-1 as INTEGER)", "discovery_type = 1")
+
+
+def test_normalized_ranges_compare_equal_to_their_source():
+    where = "depth BETWEEN 0 AND 1 or distance BETWEEN 0 AND 10"
+    normalized = normalize_where(where)
+    assert normalize_where(normalized) == normalized
+    assert identical(where, normalized)

@@ -26,6 +26,25 @@ def test_generate_unique_count(catalog: Layers) -> None:
             assert catalog.find_layer(name) is not None
 
 
+def test_table_only_catalog_has_no_spatial_relations():
+    import random
+
+    import pytest
+
+    from feln import Column, Layer
+
+    tables = [
+        Layer(name=name, stype="Table", columns=[Column(name="amount", dtype="Double")])
+        for name in ("Sales", "Orders")
+    ]
+    for seed in range(20):
+        _, query = sample(random.Random(seed), tables)
+        assert len(query.layers) == 1
+        assert query.relations == []
+    with pytest.raises(ValueError, match="catalog has no layers"):
+        sample(random.Random(0), [])
+
+
 def test_calendar_year_conditions_have_complete_boundaries():
     import random
     from unittest.mock import patch
@@ -105,11 +124,10 @@ def test_distance_variants_keep_relation(catalog):
         distance = meta.split()[1]
         assert text in {
             f"within {distance} miles of",
-            f"less than {distance} miles from",
             f"no more than {distance} miles from",
         }
         seen.add(text.split()[0])
-    assert seen == {"within", "less", "no"}
+    assert seen == {"within", "no"}
 
 
 def test_numeric_inclusive_and_boolean_conditions():
