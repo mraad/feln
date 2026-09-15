@@ -93,7 +93,10 @@ def _atom(node: exp.Expression) -> Atom:
     elif node.args.get("negate"):  # sqlglot spells ``NOT LIKE`` as Like(negate=True)
         op = "NOT " + op
     cols = tuple(sorted(c.name.lower() for c in node.find_all(exp.Column)))
-    lits = tuple(lit.this for lit in node.find_all(exp.Literal))
+    lits = tuple(
+        f"-{lit.this}" if isinstance(lit.parent, exp.Neg) else lit.this
+        for lit in node.find_all(exp.Literal)
+    )
     return cols, op, lits
 
 

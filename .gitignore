@@ -8,3 +8,14 @@ build/
 *.egg-info/
 .DS_Store
 .idea/
+
+# Local settings and credentials
+.claude/settings.local.json
+.resume
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx

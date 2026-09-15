@@ -109,6 +109,9 @@ def test_semantic_identical_is_one(encoder) -> None:
         ("a LIKE '%x%'", "a NOT LIKE '%x%'", 0.75),
         ("a = 1", "", 0.0),
         ("a = 1", "not sql (((", 0.0),
+        ("x > -5", "x > 5", 0.75),
+        ("x < -10", "x < -20", 0.875),
+        ("x > CAST(-5 AS INTEGER)", "x > 5", 0.75),
     ],
 )
 def test_where_credit(left: str, right: str, expected: float) -> None:

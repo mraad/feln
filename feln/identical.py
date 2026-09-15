@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+from functools import lru_cache
 
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer import optimize
 from sqlglot.optimizer.normalize import normalize
+from sqlglot.optimizer.simplify import simplify
 
 DIALECT = "duckdb"
 
@@ -28,6 +30,7 @@ def parse_where(where: str) -> exp.Expression:
     return sqlglot.parse_one(where, read=DIALECT).transform(_strip_literal_casts)
 
 
+@lru_cache(maxsize=4096)
 def normalize_where(where: str, dnf: bool = False) -> str:
     """Return a canonical SQL form of *where*, or the stripped original on failure.
 
@@ -40,7 +43,8 @@ def normalize_where(where: str, dnf: bool = False) -> str:
         return ""
     with contextlib.suppress(Exception):
         parsed = optimize(parse_where(where), dialect=DIALECT)
-        return normalize(parsed, dnf=dnf).sql(dialect=DIALECT)
+        # Normalization can expand BETWEEN/OR after optimize's final sort.
+        return simplify(normalize(parsed, dnf=dnf)).sql(dialect=DIALECT)
     return where
 
 

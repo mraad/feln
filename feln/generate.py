@@ -165,7 +165,7 @@ def layer_phrase(
 
     Subtype labels are lowercased; *alias_suffix* appends the layer alias
     (``oil discoveries``, ``dry wells``) so labels shared across layers stay
-    unambiguous. Leave it off when the alias is not a noun (sample-catalog ``master``).
+    unambiguous. Leave it off when the alias is not a noun (for example ``master``).
     *layer_only* is the share of subtyped layers phrased by alias alone
     (``Show wells``) with no subtype filter; the subtype column is then an
     ordinary condition candidate (``wells where content type is DRY``).
@@ -218,7 +218,7 @@ def relation(rng: random.Random, primary: Layer, secondary: Layer) -> tuple[str,
     if rng.random() < 0.1:
         distance = distance + 0.5
     if kind == "withinDistance":
-        phrase = rng.choice(["within", "less than", "no more than"])
+        phrase = rng.choice(["within", "no more than"])
         tail = "of" if phrase == "within" else "from"
         return f"{phrase} {distance:g} {unit} {tail}", f"withinDistance {distance:g} {unit}"
     return (
@@ -244,7 +244,9 @@ def sample(
     """
     spatial = [layer for layer in layers if layer.stype in SPATIAL]
     pool = spatial or list(layers)
-    max_n = min(3, len(pool))
+    if not pool:
+        raise ValueError("catalog has no layers")
+    max_n = min(3, len(pool)) if spatial else 1
     n = 1 if max_n == 1 else rng.choices(list(range(1, max_n + 1)), [4, 4, 2][:max_n])[0]
     chosen = rng.sample(pool, n)
     n_conds = [rng.choices([0, 1, 2], [1, 5, 3])[0]] + [
