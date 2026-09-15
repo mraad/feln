@@ -165,7 +165,7 @@ def layer_phrase(
 
     Subtype labels are lowercased; *alias_suffix* appends the layer alias
     (``oil discoveries``, ``dry wells``) so labels shared across layers stay
-    unambiguous. Leave it off when the alias is not a noun (for example ``master``).
+    unambiguous. Leave it off when the alias is not a noun (for example ``all``).
     *layer_only* is the share of subtyped layers phrased by alias alone
     (``Show wells``) with no subtype filter; the subtype column is then an
     ordinary condition candidate (``wells where content type is DRY``).

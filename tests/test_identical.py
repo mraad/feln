@@ -10,8 +10,8 @@ from feln import identical, normalize_where
 @pytest.mark.parametrize(
     ("left", "right"),
     [
-        ("Bank_Distance < 250", '"Bank_Distance" < CAST(250 AS DOUBLE)'),
-        ("buildingtypeid = 13", "buildingtypeid = cast(13 as SMALLINT)"),
+        ("Pipeline_Distance < 250", '"Pipeline_Distance" < CAST(250 AS DOUBLE)'),
+        ("status = 13", "status = cast(13 as SMALLINT)"),
         ("d > timestamp '1995-01-01'", "d > CAST('1995-01-01' AS DATE)"),
         ("d > timestamp '1995-01-01'", "d > '1995-01-01'"),
         ("a = 1 AND (b = 2 OR c = 3)", "(a = 1 AND b = 2) OR (a = 1 AND c = 3)"),
@@ -27,7 +27,7 @@ def test_equivalent(left: str, right: str) -> None:
     [
         ("content = 'GAS'", "content = 'gas'"),  # string literals stay case-sensitive
         ("Female > 200 OR Male > 300", "Female > 200 AND Male > 300"),
-        ("buildingtypeid = 13 AND flooraboveground > 2", "flooraboveground > 2"),
+        ("status = 2 AND depth > 1000", "depth > 1000"),
         ("a = 1", ""),
     ],
 )

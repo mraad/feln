@@ -2,11 +2,24 @@
 
 ## Result
 
-No secrets or private personal records were detected in the reviewed source,
-fixtures, documentation, dependency manifests, lockfile, or Git file history.
-Personal home-directory paths were removed from current documentation and local
-Git history. All 19 local commits now use anonymous author/committer identities;
-identifying text in their messages was also sanitized.
+**Current status after merging and pulling:** the published branch retained its
+original ancestry. Pulling that branch restored historical personal paths,
+author/committer identities, and references to other datasets to this checkout.
+The local rewrite described below is an earlier checkpoint, not a statement
+that the current history is anonymous. See the
+[open-source review](open-source-review-20260915.md) for the current findings.
+
+No secret credentials were detected in the reviewed source, fixtures,
+documentation, dependency manifests, lockfile, or Git file history. The
+checked-in fixtures are synthetic, and the review found no private application
+records. Published history still contains personal identifiers, including
+home paths and author/committer names and email addresses; those findings
+remain unresolved despite the absence of credential or private-record findings.
+
+At the earlier rewrite checkpoint, personal home-directory paths were removed
+from current documentation and local Git history. All 19 local commits then
+used anonymous author/committer identities; identifying text in their messages
+was also sanitized.
 
 ## Changes
 

@@ -102,10 +102,10 @@ def test_semantic_identical_is_one(encoder) -> None:
     [
         ("a = 1 AND b = 2", "b = 2 AND a = 1", 1.0),
         ("", "", 1.0),
-        ("buildingtypeid = 13 AND flooraboveground > 2", "flooraboveground > 2", 2 / 3),
-        ("Female > 200 OR Male > 300", "Female > 200 AND Male > 300", 0.75),
-        ("Bank_Distance < 250", '"Bank_Distance" < CAST(25 AS DOUBLE)', 0.775),
-        ("Bank_Distance < 250", "School_Distance < 250", 0.5),
+        ("status = 2 AND depth > 1000", "depth > 1000", 2 / 3),
+        ("depth > 200 OR pressure > 300", "depth > 200 AND pressure > 300", 0.75),
+        ("Pipeline_Distance < 250", '"Pipeline_Distance" < CAST(25 AS DOUBLE)', 0.775),
+        ("Pipeline_Distance < 250", "Well_Distance < 250", 0.5),
         ("a LIKE '%x%'", "a NOT LIKE '%x%'", 0.75),
         ("a = 1", "", 0.0),
         ("a = 1", "not sql (((", 0.0),
@@ -130,26 +130,26 @@ def test_partial_matches_structural_when_exact() -> None:
 
 
 def test_partial_swapped_primary_is_half_not_zero() -> None:
-    gold = FELN(layers=["Neighborhoods", "Master"], where=["", "t = 13"], relations=["contains"])
-    pred = FELN(layers=["Master", "Neighborhoods"], where=["t = 13", ""], relations=["within"])
+    gold = FELN(layers=["Counties", "Wells"], where=["", "status = 2"], relations=["contains"])
+    pred = FELN(layers=["Wells", "Counties"], where=["status = 2", ""], relations=["within"])
     assert FELNCompare.structural(gold, pred) == pytest.approx(0.0)
     # layers 1.0 * swap 0.5 -> 0.2; WHEREs match by name -> 0.3; relation on the wrong side -> 0
     assert FELNCompare.partial(gold, pred) == pytest.approx(0.5)
 
 
 def test_partial_grades_where() -> None:
-    gold = FELN(layers=["Master"], where=["t = 13 AND floors > 2"], relations=[])
-    dropped = FELN(layers=["Master"], where=["floors > 2"], relations=[])
-    garbage = FELN(layers=["Master"], where=["name LIKE '%x%'"], relations=[])
+    gold = FELN(layers=["Wells"], where=["status = 2 AND depth > 1000"], relations=[])
+    dropped = FELN(layers=["Wells"], where=["depth > 1000"], relations=[])
+    garbage = FELN(layers=["Wells"], where=["name LIKE '%x%'"], relations=[])
     assert FELNCompare.structural(gold, dropped) == FELNCompare.structural(gold, garbage) == 0.7
     assert FELNCompare.partial(gold, dropped) == pytest.approx(0.4 + 0.3 * 2 / 3 + 0.3)
     assert FELNCompare.partial(gold, garbage) < FELNCompare.partial(gold, dropped) < 1.0
 
 
 def test_cost_is_ordered_and_bounded() -> None:
-    gold = FELN(layers=["Master"], where=["t = 13 AND floors > 2"], relations=[])
-    dropped = FELN(layers=["Master"], where=["floors > 2"], relations=[])
-    garbage = FELN(layers=["Master"], where=["name LIKE '%x%'"], relations=[])
+    gold = FELN(layers=["Wells"], where=["status = 2 AND depth > 1000"], relations=[])
+    dropped = FELN(layers=["Wells"], where=["depth > 1000"], relations=[])
+    garbage = FELN(layers=["Wells"], where=["name LIKE '%x%'"], relations=[])
     assert FELNCompare.cost(gold, None) == 1.0
     assert FELNCompare.cost(gold, gold) == pytest.approx(0.0)
     assert FELNCompare.cost(gold, gold, {1, 2}, {1, 2}) == pytest.approx(0.0)
