@@ -15,9 +15,9 @@ uv run feln compare a.json b.json
 ```
 
 Runtime dependencies are pydantic, sqlglot, numpy, and `layers-json[model]`
-pinned to a commit of the private layers-json repo — the `model` extra is the
-catalog model this package imports. Installing needs GitHub credentials; the
-pin means a local edit in `../layers-json` is invisible here until it is pushed
+pinned to a commit of the public [layers-json](https://github.com/mraad/layers-json)
+repo — the `model` extra is the catalog model this package imports. No credentials
+are needed; the pin means a local edit in `../layers-json` is invisible here until it is pushed
 and the `rev` bumped. To work across both, `uv pip install -e ../layers-json`
 and then run with `uv run --no-sync` — a plain `uv run` re-syncs and silently
 restores the pin. GDAL is **not** required: this project reads `Layers.json`, it
