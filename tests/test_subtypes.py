@@ -128,24 +128,26 @@ def test_primary_and_secondary_subtypes_match_generated_sql():
     assert generate(catalog, 20, seed=5) == generate(catalog, 20, seed=5)
 
 
-def test_subtyped_master_never_uses_catalog_name_in_text():
-    master = Layer(
-        name="Master",
-        alias="master",
+def test_subtyped_layer_never_uses_catalog_name_in_text():
+    layer = Layer(
+        name="Features",
+        alias="features",
         subtype="KIND",
         columns=[
             Column(
-                name="KIND", dtype="Integer", keyval={"1": "villa", "2": "hospital", "3": "park"}
+                name="KIND",
+                dtype="Integer",
+                keyval={"1": "oil wells", "2": "gas wells", "3": "dry wells"},
             )
         ],
     )
     seen = set()
     for seed in range(100):
-        text, meta = sample(random.Random(seed), [master])
-        assert "master" not in text.casefold()
-        assert meta.layers == ["Master"]
-        for code, label in master.columns[0].keyval.items():
+        text, meta = sample(random.Random(seed), [layer])
+        assert "features" not in text.casefold()
+        assert meta.layers == ["Features"]
+        for code, label in layer.columns[0].keyval.items():
             if label in text:
                 seen.add(label)
                 assert meta.where == [f"KIND = cast({code} as INTEGER)"]
-    assert seen == {"villa", "hospital", "park"}
+    assert seen == {"oil wells", "gas wells", "dry wells"}

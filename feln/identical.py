@@ -35,7 +35,7 @@ def normalize_where(where: str, dnf: bool = False) -> str:
     """Return a canonical SQL form of *where*, or the stripped original on failure.
 
     Empty / whitespace-only clauses become ``""``. Parsed as DuckDB, so identifiers
-    are case-insensitive (``Bank_Distance`` ≡ ``"bank_distance"``) and literal casts
+    are case-insensitive (``Pipeline_Distance`` ≡ ``"pipeline_distance"``) and literal casts
     are dropped (``cast(2 as SMALLINT)`` ≡ ``2``, ``timestamp '…'`` ≡ ``'…'``).
     """
     where = where.strip()

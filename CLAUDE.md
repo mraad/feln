@@ -81,7 +81,7 @@ partial)` when both OBJECTID sets are given, except when both sets are empty
 `Cast(Literal)` before normalising: DuckDB identifiers are case-insensitive
 and `cast(2 as SMALLINT)`, `timestamp '…'`, `CAST(250 AS DOUBLE)` all compare
 as the bare literal. Without this every quoted or cast column from a compiler
-(`"Bank_Distance" < CAST(250 AS DOUBLE)`) scored 0 against `Bank_Distance <
+(`"Pipeline_Distance" < CAST(250 AS DOUBLE)`) scored 0 against `Pipeline_Distance <
 250`. String literals stay case-sensitive, as in DuckDB.
 
 Normalization caches at most 4,096 immutable strings; do not cache mutable ASTs.

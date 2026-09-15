@@ -89,7 +89,7 @@ entry because they apply to one layer.
 
 ### 5. Select points inside an area
 
-**“Find wells inside County A county.”**
+**“Find wells inside County A.”**
 
 ```json
 {
@@ -101,7 +101,7 @@ entry because they apply to one layer.
 
 The county-name filter selects the area used to constrain the wells. `within`
 is evaluated from each well to that county. With the DuckDB compiler, a point
-on the county boundary is not strictly within it. `County A` is a sample value
+on the county boundary is not strictly within it. `County A` is a synthetic label
 in the synthetic fixture, not a NorthSea catalog assumption.
 
 ### 6. Change which features are returned
@@ -122,7 +122,7 @@ if it contains several suspended wells; this query does not count wells.
 
 ### 7. Apply two spatial constraints to the same primary layer
 
-**“Find active wells inside County A county and within 2 kilometers of a gas pipeline.”**
+**“Find active wells inside County A and within 2 kilometers of a gas pipeline.”**
 
 ```json
 {
@@ -256,11 +256,11 @@ lower-case identifiers, sorted conjuncts, bare literals: `"content_type" = 2 AND
 "countryname" LIKE '%Denmark%'`, not `content_type = cast(2 as SMALLINT) and (...)`.
 
 When a layer has subtype labels, they always supply the feature name in text,
-for both primary and spatial filter layers. For example, a subtype label `Hospitals` produces
-`Show hospitals` with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
+for both primary and spatial filter layers. For example, a subtype label `Oil wells` produces
+`Show oil wells` with `kind = cast(1 as INTEGER)` while `meta.layers` keeps the catalog layer name.
 Labels are lowercased in text; `--alias-suffix` (`generate(..., alias_suffix=True)`) appends the
 layer alias — `Show oil discoveries`, `List all dry wells` — which disambiguates labels shared
-across layers. Leave it off when the alias is not a noun (`master`). `--layer-only 0.25`
+across layers. Leave it off when the alias is not a noun (`all`). `--layer-only 0.25`
 (`layer_only=0.25`) phrases that share of subtyped layers by alias alone — `Show wells`,
 `List pipelines` — with no subtype filter, and the subtype column then competes as an
 ordinary condition (`wells where content type is DRY`). Additional conditions are ANDed
@@ -312,6 +312,20 @@ when both result sets are empty, it falls back to partial score alone.
 DuckDB, so identifiers are case-insensitive and `cast(2 as SMALLINT)` equals `2`.
 Semantic compare encodes one canonical string per FELN (sqlglot-normalized
 WHERE, parsed relations, secondaries sorted) and returns cosine similarity.
+
+## Security
+
+FELN generates SQL; it does not execute it or provide a SQL sandbox. Treat
+catalog metadata, WHERE expressions, and compiler options as trusted inputs.
+The WHERE guard rejects some unsafe syntax, but it does not prevent subqueries
+or database functions that read files or access external resources. Geometry,
+output-alias, and CRS options must not come directly from untrusted users.
+
+Before executing model-generated or user-supplied queries, enforce the
+application's allowed tables, columns, and operations, and isolate the database
+process with restricted filesystem/network access and resource limits. See
+[DuckDB's security guidance](https://duckdb.org/docs/current/operations_manual/securing_duckdb/overview).
+Structural similarity and successful SQL parsing are not security checks.
 
 ## Tests
 
