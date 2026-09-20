@@ -158,6 +158,22 @@ uv run feln generate "$HOME/Documents/ArcGIS/Projects/NorthSea/Layers.json" \
 that catalog to generate examples. See [CLI](#cli) for generation options,
 SQL compilation, and comparison commands.
 
+### Humanize generated text
+
+Paraphrase the generator sentences into natural requests. This always runs
+locally with Ollama and `qwen3.8:27b-mlx`: a local model is good enough for
+rewording, so frontier-model tokens are not spent on it and project data never
+leaves the machine. The original sentence is kept as `source_text`:
+
+```bash
+ollama pull qwen3.8:27b-mlx   # once
+uv run python scripts/humanize.py FELN.json -o FELN.json --model qwen3.8:27b-mlx
+```
+
+Runs are resumable (batches in `FELN.json.batches/`). A paraphrase that drops
+a number or quoted literal is retried, then kept verbatim and counted. Expect
+about 50 rows a minute on an M4 Max.
+
 ## Goal
 
 Use [`layers-json`](https://github.com/mraad/layers-json) to generate the
@@ -278,6 +294,19 @@ rewrite existing files. Distance text uses “within” and “no more than”,
 represented by `withinDistance` (`ST_DWithin`, including the distance boundary).
 It no longer uses strict “less than” wording for that inclusive relation;
 regenerate or audit older distance examples as well. Seeded output may change.
+
+Generation follows the catalog's string-match hints: ILIKE stays case-insensitive,
+LIKE-only hints stay case-sensitive, and coded values use their stored codes.
+Literal wildcard characters are escaped. Numeric ranges retain casts on both
+bounds; omit `--normalize` when training against metadata that requires casts.
+
+Human-readable field aliases and optional column hints such as
+`Text for value YES: that are included in a field.` control boolean wording.
+Composite subtype labels are quoted classifications (for example,
+`wells classified as 'gas/condensate shows'`) when `--alias-suffix` is enabled.
+Each spatial constraint names the returned primary layer explicitly, preventing
+three-layer requests from reading as a chain. Mixed catalogs include tables in
+single-layer requests, never in spatial relationships.
 
 ## Library
 

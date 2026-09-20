@@ -58,6 +58,8 @@ def test_calendar_year_conditions_have_complete_boundaries():
             "in": "entry_date >= timestamp '2005-01-01' AND entry_date < timestamp '2006-01-01'",
             "after": "entry_date >= timestamp '2006-01-01'",
             "before": "entry_date < timestamp '2005-01-01'",
+            "since": "entry_date >= timestamp '2005-01-01'",
+            "through": "entry_date < timestamp '2006-01-01'",
         }.items():
             rng = random.Random(0)
             with (
@@ -67,6 +69,19 @@ def test_calendar_year_conditions_have_complete_boundaries():
                 text, sql = condition(rng, column)
             assert text == f"entry date {op} 2005"
             assert sql == expected
+        rng = random.Random(0)
+        with (
+            patch.object(rng, "randint", side_effect=[2005, 2010]),
+            patch.object(rng, "choices", return_value=["between"]),
+        ):
+            text, sql = condition(rng, column)
+        assert text == "entry date between 2005 and 2010"
+        assert sql == "entry_date >= timestamp '2005-01-01' AND entry_date < timestamp '2011-01-01'"
+    sampled = Column(
+        name="d", alias="d", dtype="Date", values=["2024-02-07 14:22:32", "2025-09-04 07:56:55"]
+    )
+    years = {int(condition(random.Random(i), sampled)[0].split()[-1]) for i in range(40)}
+    assert {2024, 2025} <= years <= {2024, 2025, 2026}  # 2026: between with equal picks
 
 
 def test_normalize_writes_canonical_where(catalog: Layers) -> None:
@@ -122,9 +137,10 @@ def test_distance_variants_keep_relation(catalog):
         with patch.object(rng, "choices", side_effect=[["withinDistance"], ["miles"]]):
             text, meta = relation(rng, *list(catalog.layers)[:2])
         distance = meta.split()[1]
+        unit = "mile" if float(distance) == 1 else "miles"
         assert text in {
-            f"within {distance} miles of",
-            f"no more than {distance} miles from",
+            f"within {distance} {unit} of",
+            f"no more than {distance} {unit} from",
         }
         seen.add(text.split()[0])
     assert seen == {"within", "no"}

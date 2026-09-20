@@ -21,7 +21,11 @@ def _strip_literal_casts(node: exp.Expression) -> exp.Expression:
     if isinstance(inner, exp.Neg):  # ``cast(-1 as INTEGER)`` parses as Cast(Neg(Literal))
         inner = inner.this
     if isinstance(inner, exp.Literal):
-        return node.this
+        node = node.this
+    if isinstance(node, exp.Literal) and not node.is_string and "." in node.this:
+        # ``1000.0`` and ``1000`` compare equal in DuckDB; only the digits carry meaning.
+        trimmed = node.this.rstrip("0").rstrip(".") or "0"
+        return exp.Literal.number(trimmed)
     return node
 
 

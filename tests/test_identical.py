@@ -50,3 +50,10 @@ def test_normalized_ranges_compare_equal_to_their_source():
     normalized = normalize_where(where)
     assert normalize_where(normalized) == normalized
     assert identical(where, normalized)
+
+
+def test_numeric_literals_ignore_trailing_zeros():
+    assert identical("DEPTH > cast(1000.0 as DOUBLE PRECISION)", "DEPTH > 1000")
+    assert identical("DEPTH BETWEEN 250.0 AND 1000.0", "DEPTH BETWEEN 250 AND 1000")
+    assert identical("x = 0.50", "x = 0.5")
+    assert not identical("x = 1000.5", "x = 1000")

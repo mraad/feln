@@ -124,3 +124,20 @@ to avoid generating spatial relations without geometry.
   where the model now lives; do not re-add a copy here.
 - Compare tests lock exact scores for permutation, `within`/`inside`, and
   mile/kilometre equivalence. Do not widen them to `0 < score < 1`.
+
+## Humanize (paraphrase FELN text)
+
+Humanization and paraphrasing of generated `text` is **always local**:
+`scripts/humanize.py` against the Mac's Ollama with `qwen3.8:27b-mlx`. The
+point is to save frontier-model tokens: a local model is good enough for this
+task, so never route FELN text through the `claude` CLI, subagents, or any
+hosted API for it. Chosen 2026-09-20 over `gemma4:31b-mxfp8` (3x slower, same
+quality) and `nemotron3:33b` (near-verbatim copies); measured about 50 rows a
+minute, 3000 rows in roughly 55 minutes. The script keeps the generator
+sentence as `source_text`, passes `meta.layers` so subtype words resolve to
+the right layer, rejects a paraphrase that drops any number or quoted literal
+(numbers compared numerically, apostrophes in contractions ignored), retries,
+and falls back to the source sentence (counted as "kept verbatim"). Batches
+land in `<out>.batches/` so a stopped run resumes; launch long runs with
+`nohup`. Back up the target `FELN.json` first
+(`FELN.pre-humanize-<YYYYMMDD-HHMMSS>.json.bak`, project convention).
