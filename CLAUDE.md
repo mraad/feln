@@ -14,7 +14,7 @@ uv run feln sql tests/fixtures/layers.json /tmp/q.json
 uv run feln compare a.json b.json
 ```
 
-Runtime dependencies are pydantic, sqlglot, numpy, and `layers-json[model]`
+Runtime dependencies are pydantic, sqlglot, and `layers-json[model]`
 pinned to a commit of the public [layers-json](https://github.com/mraad/layers-json)
 repo — the `model` extra is the catalog model this package imports. No credentials
 are needed; the pin means a local edit in `../layers-json` is invisible here until it is pushed
@@ -30,7 +30,7 @@ Layers.json ──layers_json.layers.Layers──> catalog
                  │
                  ├── generate.py ──> synthetic {text, meta} jsonl
                  ├── sql.py      ──> DuckDB spatial SQL
-                 └── compare.py  ──> structural / semantic score
+                 └── compare.py  ──> structural / partial score, cost
 ```
 
 `layers-json` is the catalog **producer** *and* owns the consumer-side model.
@@ -55,14 +55,13 @@ layer and greedily matches secondaries by case-insensitive stripped name, so
 a permutation of the same filters scores ~1. `within` and `inside` are the
 same kind (DuckDB already emits `ST_Within` for both). Distance relations
 convert to meters before scoring; unknown units fall back to kind-only
-partial credit.
+partial credit (SQL rejects them). All three greedy matchers (`FELN.same`,
+`_align`, `_align_any`) go through `model.pair_up`.
 
-`FELNCompare.semantic` encodes **one canonical string per FELN**, not a
-mean-pool of raw parts. Canonical form sorts secondaries, runs WHERE through
-the same sqlglot normalize path as `identical()`, and prints relations as
-`kind [meters]`. Two `encode_document` calls are collapsed to one batch
-(unique strings). Do not reintroduce the `"empty"` sentinel or a
-`max_n == 0` branch — `FELN` cannot have zero layers.
+`canonical_text` is one canonical string per FELN (secondaries sorted, WHERE
+through `normalize_where`, relations as `kind [meters]`); feln-laya and feln-qwen
+import it. `FELNCompare.semantic` was removed 2026-11-17 (no callers); with it
+went numpy. `FELN` cannot have zero layers: no `max_n == 0` branch.
 
 Weights stay 0.4 layers / 0.3 WHERE / 0.3 relations.
 
@@ -95,7 +94,14 @@ Graded literal comparison must retain unary minus (`x > -5` is not `x > 5`).
 the spatial join; a no-op plus a non-empty secondary WHERE is an error
 (the filter would be silently dropped). `notWithinDistance` is `NOT EXISTS`,
 never `NOT ST_DWithin` inside an inner join. Distances go through
-`feln.units.to_meters`. Table names come from `Layer.table_name` when set,
+`feln.units.to_meters`; an unknown unit raises (it used to be read as meters,
+so `3 nmi` became 3 m). `parse_relation` rejects negative, NaN and infinite
+distances. `sanitize_where_clause` is an AST allowlist (comparisons, AND/OR/NOT,
+LIKE/ILIKE, IN, BETWEEN, IS NULL, literal casts, unqualified columns), not a
+keyword blocklist: no functions, subqueries, or `LIMIT`/`ORDER BY` riding in a
+WHERE. Pass `columns` to also pin column names; feln-dsl's guard does. Every
+WHERE in NorthSea's FELN.json and the generator's output fits; a new SQL shape
+must be added to `_ALLOWED_NODES` on purpose. Table names come from `Layer.table_name` when set,
 else `name` with spaces turned into underscores, then
 `sanitize_identifier`.
 

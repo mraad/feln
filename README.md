@@ -233,7 +233,7 @@ uv sync --extra dev
 [layers-json](https://github.com/mraad/layers-json) repo (no credentials needed).
 Its `model` extra is the `Column` / `Layer` / `Layers` catalog model this package
 imports and re-exports.
-Runtime needs pydantic, sqlglot, and numpy; GDAL is not required.
+Runtime needs pydantic and sqlglot; GDAL is not required.
 
 Working on both repos at once? Shadow the pin with the local checkout:
 
