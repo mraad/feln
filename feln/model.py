@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Callable, Iterable
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .identical import identical
@@ -104,25 +107,35 @@ class FELN(BaseModel):
             return False
         if not identical(self.where[0], other.where[0]):
             return False
-        unused = set(range(1, len(other.layers)))
-        for i, name in enumerate(self.layers[1:], start=1):
-            key = name.strip().lower()
-            match = next(
-                (
-                    j
-                    for j in unused
-                    if other.layers[j].strip().lower() == key
-                    and identical(self.where[i], other.where[j])
-                    and parse_relation(self.relations[i - 1]).same(
-                        parse_relation(other.relations[j - 1])
-                    )
-                ),
-                None,
-            )
-            if match is None:
-                return False
-            unused.remove(match)
-        return not unused
+        pairs, _ = pair_up(
+            range(1, len(self.layers)),
+            range(1, len(other.layers)),
+            lambda i, j: (
+                self.layers[i].strip().lower() == other.layers[j].strip().lower()
+                and identical(self.where[i], other.where[j])
+                and parse_relation(self.relations[i - 1]).same(
+                    parse_relation(other.relations[j - 1])
+                )
+            ),
+        )
+        return all(j is not None for _, j in pairs)
+
+
+def pair_up(
+    a: Iterable[int], b: Iterable[int], match: Callable[[int, int], bool]
+) -> tuple[list[tuple[int, int | None]], list[int]]:
+    """Greedy pairing: each index of *a* takes the first unused index of *b* that matches.
+
+    Returns ``(pairs, unused_b)``; an unmatched ``a`` index pairs with ``None``.
+    """
+    unused = list(b)
+    pairs: list[tuple[int, int | None]] = []
+    for i in a:
+        j = next((j for j in unused if match(i, j)), None)
+        if j is not None:
+            unused.remove(j)
+        pairs.append((i, j))
+    return pairs, unused
 
 
 def parse_relation(rel: str) -> Relation:
@@ -143,5 +156,7 @@ def parse_relation(rel: str) -> Relation:
             distance = float(parts[1])
         except ValueError:
             raise ValueError(f"Invalid distance value: '{parts[1]}'") from None
+        if not math.isfinite(distance) or distance < 0:
+            raise ValueError(f"Distance must be a finite number >= 0, got: '{parts[1]}'")
         return Relation(kind=kind, distance=distance, unit=parts[2].lower())
     return Relation(kind=kind)
