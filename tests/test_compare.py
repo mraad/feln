@@ -60,7 +60,7 @@ def test_structural_distance_partial_credit() -> None:
     assert FELNCompare.structural(left, right) == pytest.approx(0.925)
 
 
-def test_semantic_canonicalizes_equivalent_where(encoder) -> None:
+def test_canonical_text_equivalent_where() -> None:
     left = FELN(
         layers=["wells"],
         where=["depth > 100 AND status = 'ACTIVE'"],
@@ -72,26 +72,15 @@ def test_semantic_canonicalizes_equivalent_where(encoder) -> None:
         relations=[],
     )
     assert canonical_text(left) == canonical_text(right)
-    assert FELNCompare.semantic(left, right, encoder) == pytest.approx(1.0, abs=1e-6)
 
 
-def test_semantic_permutation_is_one(encoder) -> None:
+def test_canonical_text_ignores_secondary_order() -> None:
     left = _wells_pipeline_counties(["intersects", "within"])
     right = _wells_pipeline_counties(
         ["within", "intersects"],
         layers=["wells", "counties", "pipeline"],
     )
     assert canonical_text(left) == canonical_text(right)
-    assert FELNCompare.semantic(left, right, encoder) == pytest.approx(1.0, abs=1e-6)
-
-
-def test_semantic_identical_is_one(encoder) -> None:
-    query = FELN(
-        layers=["wells", "pipeline"],
-        where=["", "status = 'IN-SERVICE'"],
-        relations=["withinDistance 5 miles"],
-    )
-    assert FELNCompare.semantic(query, query, encoder) == pytest.approx(1.0, abs=1e-6)
 
 
 # --- partial credit / cost: values locked, an optimiser needs them ordered, not just > 0

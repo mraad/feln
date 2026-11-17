@@ -7,22 +7,16 @@ Partial / cost: the same skeleton with graded credit — layers matched at any
 position (swapped primary costs half), WHERE scored per predicate instead of
 all-or-nothing — blended with OBJECTID jaccard when execution results exist.
 ``cost`` is what an optimiser minimises; ``structural`` stays the report score.
-
-Semantic: one canonical string per FELN, one batched ``encode_document``,
-cosine of L2-normalised vectors.
 """
 
 from __future__ import annotations
 
-from typing import Protocol
-
-import numpy as np
 from sqlglot import exp
 from sqlglot.optimizer import optimize
 from sqlglot.optimizer.normalize import normalize
 
 from .identical import DIALECT, identical, normalize_where, parse_where
-from .model import DISTANCE_KINDS, FELN, Relation, canon_kind, parse_relation
+from .model import DISTANCE_KINDS, FELN, Relation, canon_kind, pair_up, parse_relation
 from .units import to_meters
 
 _LAYER_W = 0.4
@@ -33,10 +27,8 @@ _SHAPE_PENALTY = 0.75  # WHERE credit when the OR-group count differs (AND ↔ O
 _EXEC_W = 0.7  # jaccard share of ``cost`` when both OBJECTID sets are known
 
 
-class Encoder(Protocol):
-    """Anything with ``encode_document`` (gait Encoder, SentenceTransformer wrapper, …)."""
-
-    def encode_document(self, sentences: str | list[str], **kwargs: object) -> np.ndarray: ...
+def _names_match(a: FELN, b: FELN):
+    return lambda i, j: a.layers[i].strip().lower() == b.layers[j].strip().lower()
 
 
 def _align(a: FELN, b: FELN) -> list[tuple[int | None, int | None]]:
@@ -45,20 +37,8 @@ def _align(a: FELN, b: FELN) -> list[tuple[int | None, int | None]]:
     Index 0 (primary) is always paired with 0. Unmatched secondaries pad with
     ``None`` so the denominator can penalise extra layers.
     """
-    pairs: list[tuple[int | None, int | None]] = [(0, 0)]
-    unused = set(range(1, len(b.layers)))
-    for i, name in enumerate(a.layers[1:], start=1):
-        key = name.strip().lower()
-        match = next(
-            (j for j in unused if b.layers[j].strip().lower() == key),
-            None,
-        )
-        if match is not None:
-            unused.remove(match)
-        pairs.append((i, match))
-    for j in sorted(unused):
-        pairs.append((None, j))
-    return pairs
+    pairs, unused = pair_up(range(1, len(a.layers)), range(1, len(b.layers)), _names_match(a, b))
+    return [(0, 0), *pairs, *((None, j) for j in unused)]
 
 
 def _relation_credit(ra: Relation | None, rb: Relation | None) -> float:
@@ -166,16 +146,8 @@ def where_credit(a: str, b: str) -> float:
 
 def _align_any(a: FELN, b: FELN) -> list[tuple[int | None, int | None]]:
     """Greedy name match over every position (primary included), padded with ``None``."""
-    pairs: list[tuple[int | None, int | None]] = []
-    unused = set(range(len(b.layers)))
-    for i, name in enumerate(a.layers):
-        key = name.strip().lower()
-        match = next((j for j in sorted(unused) if b.layers[j].strip().lower() == key), None)
-        if match is not None:
-            unused.remove(match)
-        pairs.append((i, match))
-    pairs.extend((None, j) for j in sorted(unused))
-    return pairs
+    pairs, unused = pair_up(range(len(a.layers)), range(len(b.layers)), _names_match(a, b))
+    return [*pairs, *((None, j) for j in unused)]
 
 
 def _relation_at(feln: FELN, index: int | None) -> Relation | None:
@@ -199,7 +171,7 @@ def canonical_relation(rel: str) -> str:
 
 
 def canonical_text(feln: FELN) -> str:
-    """One string a semantic encoder sees: primary, then secondaries sorted by name."""
+    """One canonical string per FELN: primary, then secondaries sorted by name."""
     chunks = [f"layer: {feln.layers[0].strip()}"]
     where0 = normalize_where(feln.where[0])
     if where0:
@@ -215,30 +187,6 @@ def canonical_text(feln: FELN) -> str:
         if where:
             chunks.append(f"where: {where}")
     return " | ".join(chunks)
-
-
-def _l2(vec: np.ndarray) -> np.ndarray:
-    n = float(np.linalg.norm(vec))
-    if n == 0.0:
-        return vec
-    return vec / n
-
-
-def _as_matrix(embeddings: np.ndarray, n: int) -> np.ndarray:
-    arr = np.asarray(embeddings, dtype=np.float64)
-    if arr.ndim == 1:
-        arr = arr.reshape(1, -1)
-    if arr.shape[0] != n:
-        raise ValueError(f"encoder returned {arr.shape[0]} rows, expected {n}")
-    return arr
-
-
-def _cosine_unit(a: np.ndarray, b: np.ndarray) -> float:
-    na = float(np.linalg.norm(a))
-    nb = float(np.linalg.norm(b))
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return float(np.clip(np.dot(a, b) / (na * nb), -1.0, 1.0))
 
 
 class FELNCompare:
@@ -320,12 +268,3 @@ class FELNCompare:
             return 1.0 - struct
         jaccard = len(gold_ids & pred_ids) / len(gold_ids | pred_ids)
         return 1.0 - (_EXEC_W * jaccard + (1.0 - _EXEC_W) * struct)
-
-    @staticmethod
-    def semantic(a: FELN, b: FELN, encoder: Encoder) -> float:
-        """Cosine of two canonical embeddings. Batches unique strings into one call."""
-        texts = [canonical_text(a), canonical_text(b)]
-        unique = list(dict.fromkeys(texts))
-        matrix = _as_matrix(encoder.encode_document(unique), len(unique))
-        index = {text: _l2(matrix[i]) for i, text in enumerate(unique)}
-        return _cosine_unit(index[texts[0]], index[texts[1]])
