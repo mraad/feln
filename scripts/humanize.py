@@ -2,7 +2,8 @@
 
 Input: FELN.json (JSON array) or .jsonl of {text, meta}. Output: same records with
 ``text`` paraphrased and the generator sentence kept as ``source_text``. Resumable:
-each batch lands in ``<out>.batches/NNNNN.json``; rerun to continue after a stop.
+each batch lands in ``<out>.batches/<input sha>-b<batch>/NNNNN.json``; rerun with the same
+input and ``--batch`` to continue after a stop (other inputs or sizes start fresh).
 
     uv run python scripts/humanize.py FELN.json -o FELN.humanized.json
 """
@@ -10,7 +11,9 @@ each batch lands in ``<out>.batches/NNNNN.json``; rerun to continue after a stop
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import pathlib
 import re
 import sys
@@ -46,17 +49,30 @@ SCHEMA = {
 
 
 def load(path: pathlib.Path) -> list[dict]:
-    raw = path.read_text()
+    raw = path.read_text(encoding="utf-8")
     if path.suffix == ".jsonl":
         return [json.loads(line) for line in raw.splitlines() if line.strip()]
     return json.loads(raw)
 
 
 def literals(text: str) -> set[str | float]:
-    """Quoted strings and numbers that must survive a paraphrase ("4.0" == "4")."""
+    """Quoted strings and signed numbers in *text* ("4.0" == "4", "-4" != "4")."""
     quoted = set(re.findall(r"(?<!\w)'[^']*'(?!\w)", text))  # skip apostrophes: isn't
-    numbers = {float(n) for n in re.findall(r"(?<![\w.])\d+(?:\.\d+)?(?!\w)", text)}
+    numbers = {float(n) for n in re.findall(r"(?<![\w.-])-?\d+(?:\.\d+)?(?!\w)", text)}
     return quoted | numbers
+
+
+def keeps_literals(src: str, new: str) -> bool:
+    """A paraphrase must keep every literal of *src* and add none."""
+    return literals(src) == literals(new)
+
+
+def finished(bfile: pathlib.Path) -> bool:
+    try:
+        json.loads(bfile.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def call(model: str, host: str, batch: list[dict], timeout: int) -> dict[int, str]:
@@ -92,12 +108,13 @@ def main() -> int:
     a = ap.parse_args()
 
     rows = load(a.src)
-    bdir = a.out.with_suffix(a.out.suffix + ".batches")
-    bdir.mkdir(exist_ok=True)
+    sha = hashlib.sha256(a.src.read_bytes()).hexdigest()[:12]
+    bdir = a.out.with_suffix(a.out.suffix + ".batches") / f"{sha}-b{a.batch}"
+    bdir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     for start in range(0, len(rows), a.batch):
         bfile = bdir / f"{start:05d}.json"
-        if bfile.exists():
+        if finished(bfile):
             continue
         chunk = rows[start : start + a.batch]
         pending = {
@@ -115,12 +132,17 @@ def main() -> int:
                 continue
             for i, src in list(pending.items()):
                 new = got.get(i, "")
-                if new and new != src["text"] and literals(src["text"]) <= literals(new):
+                if new and new != src["text"] and keeps_literals(src["text"], new):
                     done[i] = new
                     del pending[i]
         for i in pending:  # give up: keep the generator sentence, flag it
             done[i] = rows[i]["text"]
-        bfile.write_text(json.dumps({"text": done, "kept": sorted(pending)}, ensure_ascii=False))
+        tmp = bfile.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({"text": done, "kept": sorted(pending)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, bfile)  # a stop mid-write never leaves a half checkpoint
         print(
             f"batch {start}: ok, kept {len(pending)} verbatim, {time.time() - t0:.0f}s elapsed",
             flush=True,
@@ -128,13 +150,13 @@ def main() -> int:
 
     kept = 0
     for start in range(0, len(rows), a.batch):
-        b = json.loads((bdir / f"{start:05d}.json").read_text())
+        b = json.loads((bdir / f"{start:05d}.json").read_text(encoding="utf-8"))
         kept += len(b["kept"])
         for i, new in b["text"].items():
             r = rows[int(i)]
             r["source_text"] = r.get("source_text", r["text"])
             r["text"] = new
-    a.out.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
+    a.out.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {len(rows)} -> {a.out} ({kept} kept verbatim after retries)")
     return 0
 
