@@ -158,6 +158,22 @@ uv run feln generate "$HOME/Documents/ArcGIS/Projects/NorthSea/Layers.json" \
 that catalog to generate examples. See [CLI](#cli) for generation options,
 SQL compilation, and comparison commands.
 
+### Humanize generated text
+
+Paraphrase the generator sentences into natural requests. This always runs
+locally with Ollama and `qwen3.8:27b-mlx`: a local model is good enough for
+rewording, so frontier-model tokens are not spent on it and project data never
+leaves the machine. The original sentence is kept as `source_text`:
+
+```bash
+ollama pull qwen3.8:27b-mlx   # once
+uv run python scripts/humanize.py FELN.json -o FELN.json --model qwen3.8:27b-mlx
+```
+
+Runs are resumable (batches in `FELN.json.batches/`). A paraphrase that drops
+a number or quoted literal is retried, then kept verbatim and counted. Expect
+about 50 rows a minute on an M4 Max.
+
 ## Goal
 
 Use [`layers-json`](https://github.com/mraad/layers-json) to generate the
@@ -217,7 +233,7 @@ uv sync --extra dev
 [layers-json](https://github.com/mraad/layers-json) repo (no credentials needed).
 Its `model` extra is the `Column` / `Layer` / `Layers` catalog model this package
 imports and re-exports.
-Runtime needs pydantic, sqlglot, and numpy; GDAL is not required.
+Runtime needs pydantic and sqlglot; GDAL is not required.
 
 Working on both repos at once? Shadow the pin with the local checkout:
 
@@ -279,6 +295,19 @@ represented by `withinDistance` (`ST_DWithin`, including the distance boundary).
 It no longer uses strict “less than” wording for that inclusive relation;
 regenerate or audit older distance examples as well. Seeded output may change.
 
+Generation follows the catalog's string-match hints: ILIKE stays case-insensitive,
+LIKE-only hints stay case-sensitive, and coded values use their stored codes.
+Literal wildcard characters are escaped. Numeric ranges retain casts on both
+bounds; omit `--normalize` when training against metadata that requires casts.
+
+Human-readable field aliases and optional column hints such as
+`Text for value YES: that are included in a field.` control boolean wording.
+Composite subtype labels are quoted classifications (for example,
+`wells classified as 'gas/condensate shows'`) when `--alias-suffix` is enabled.
+Each spatial constraint names the returned primary layer explicitly, preventing
+three-layer requests from reading as a chain. Mixed catalogs include tables in
+single-layer requests, never in spatial relationships.
+
 ## Library
 
 ```python
@@ -310,8 +339,8 @@ results are supplied, similarity is 70% OBJECTID Jaccard and 30% partial score;
 when both result sets are empty, it falls back to partial score alone.
 `identical()` parses as
 DuckDB, so identifiers are case-insensitive and `cast(2 as SMALLINT)` equals `2`.
-Semantic compare encodes one canonical string per FELN (sqlglot-normalized
-WHERE, parsed relations, secondaries sorted) and returns cosine similarity.
+`canonical_text` prints one canonical string per FELN (sqlglot-normalized WHERE,
+parsed relations, secondaries sorted), for callers that embed or deduplicate queries.
 
 ## Security
 

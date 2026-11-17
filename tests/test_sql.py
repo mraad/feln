@@ -94,3 +94,17 @@ def test_to_meters() -> None:
     assert to_meters(1, "kilometers") == 1000
     assert to_meters(1, "miles") == pytest.approx(1609.34)
     assert to_meters(1, "parsecs") is None
+
+
+def test_unknown_unit_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown distance unit"):
+        FELNToDuckDB()(
+            [_layer("Wells"), _layer("Pipelines", "Polyline")],
+            ["", ""],
+            [Relation(kind="withinDistance", distance=3.0, unit="nmi")],
+        )
+
+
+def test_st_as_rejects_bad_geometry_name() -> None:
+    with pytest.raises(ValueError, match="Invalid SQL identifier"):
+        FELNToDuckDB(geometry="g) FROM x --")([_layer("Wells")], [""], [], st_as="WKT")

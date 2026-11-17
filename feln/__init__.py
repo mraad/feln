@@ -2,7 +2,7 @@
 
 from layers_json.layers import Column, Layer, Layers
 
-from .compare import Encoder, FELNCompare
+from .compare import FELNCompare
 from .generate import sample
 from .identical import identical, normalize_where
 from .model import FELN, Relation, parse_relation
@@ -11,7 +11,6 @@ from .units import to_meters
 
 __all__ = [
     "Column",
-    "Encoder",
     "FELN",
     "FELNCompare",
     "FELNToDuckDB",

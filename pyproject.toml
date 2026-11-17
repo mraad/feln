@@ -4,14 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "feln"
-version = "0.1.1"
+version = "0.1.2"
 description = "FELN queries over a layers-json catalog: model, compare, DuckDB SQL, and a generate CLI."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.10",
     "sqlglot>=26",
-    "numpy>=2",
     # Commit-pinned so a clean checkout resolves the same tree anywhere, rather than
     # assuming this machine's layout. The repo is public (0.4.2, 2026-09-15); no
     # credentials needed. Bump the rev when layers-json lands a change this package

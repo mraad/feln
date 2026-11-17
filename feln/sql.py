@@ -14,19 +14,9 @@ from .units import to_meters
 class FELNToDuckDB:
     """CTE chain: filtered L0..Ln, one join CTE per spatial relation, L0 rows in every J_i."""
 
-    def __init__(
-        self,
-        objectid: str | None = None,
-        geometry: str | None = None,
-        alias: str | None = None,
-        crs_inp: str | None = None,
-        crs_out: str | None = None,
-    ) -> None:
+    def __init__(self, objectid: str | None = None, geometry: str | None = None) -> None:
         self.objectid = objectid or "OBJECTID"
         self.geometry = geometry or "geometry"
-        self.alias = alias or "geometry"
-        self.crs_inp = crs_inp
-        self.crs_out = crs_out
 
     def __call__(
         self,
@@ -96,8 +86,7 @@ class FELNToDuckDB:
             return self._single_layer(layers[0], wheres[0], st_as)
 
         table0 = table_ident(layers[0].name, layers[0].table_name)
-        has_distance = any(r.kind in ("withinDistance", "notWithinDistance") for r in relations)
-        select_clause = ",\n    ".join(self._select_columns(layers[0], st_as, has_distance))
+        select_clause = ",\n    ".join(self._select_columns(st_as))
         join_clauses = "\n".join(
             f"JOIN J{i} M{i} ON L.{objectid} = M{i}.{objectid}" for i in join_indices
         )
@@ -113,27 +102,18 @@ FROM {table0} L
     def _single_layer(self, layer: Layer, where: str, st_as: str | None) -> str:
         table = table_ident(layer.name, layer.table_name)
         where_clause = f"\nWHERE {sanitize_where_clause(where)}" if where else ""
-        select_clause = ",\n".join(self._select_columns(layer, st_as, is_dwithin=False))
+        select_clause = ",\n".join(self._select_columns(st_as))
         return f"SELECT\n{select_clause}\nFROM {table} L{where_clause}"
 
-    def _select_columns(self, layer: Layer, st_as: str | None, is_dwithin: bool) -> list[str]:
+    def _select_columns(self, st_as: str | None) -> list[str]:
+        geometry = sanitize_identifier(self.geometry)
         if st_as == "WKB":
-            return [f"ST_AsWKB({self._transform(is_dwithin)}) AS '{self.alias}'"]
+            return [f"ST_AsWKB({geometry}) AS 'geometry'"]
         if st_as in ("WKT", "Text"):
-            return [f"ST_AsText({self._transform(is_dwithin)}) AS '{self.alias}'"]
+            return [f"ST_AsText({geometry}) AS 'geometry'"]
         if st_as == "GeoJSON":
-            expr = self.geometry
-            if is_dwithin and self.crs_inp and self.crs_out and self.crs_inp != self.crs_out:
-                expr = f"ST_Transform({self.geometry},'{self.crs_inp}','EPSG:4326',always_xy:=TRUE)"
-            return [f"ST_AsGeoJSON({expr}) AS '{self.alias}'"]
+            return [f"ST_AsGeoJSON({geometry}) AS 'geometry'"]
         return [f"L.{sanitize_identifier(self.objectid)}"]
-
-    def _transform(self, is_dwithin: bool) -> str:
-        if is_dwithin and self.crs_inp and self.crs_out and self.crs_inp != self.crs_out:
-            return (
-                f"ST_Transform({self.geometry},'{self.crs_inp}','{self.crs_out}',always_xy:=TRUE)"
-            )
-        return self.geometry
 
     def _on_clause(self, relation: Relation, lhs_geom: str, rhs_geom: str) -> str:
         match relation.kind:
@@ -151,7 +131,9 @@ FROM {table0} L
     @staticmethod
     def _distance_m(relation: Relation) -> float:
         metres = to_meters(relation.distance, relation.unit)
-        return relation.distance if metres is None else metres
+        if metres is None:
+            raise ValueError(f"Unknown distance unit: {relation.unit!r}")
+        return metres
 
 
 def feln_to_sql(

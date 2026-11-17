@@ -63,3 +63,17 @@ def test_same_distance_unit_conversion() -> None:
     miles = Relation(kind="withinDistance", distance=5.0, unit="miles")
     km = Relation(kind="withinDistance", distance=8.0467, unit="kilometers")
     assert miles.same(km)
+
+
+@pytest.mark.parametrize(
+    "rel", ["withinDistance -5 km", "withinDistance nan km", "notWithinDistance inf m"]
+)
+def test_parse_rejects_bad_distance(rel: str) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        parse_relation(rel)
+
+
+def test_same_pairs_duplicate_secondaries_by_filter() -> None:
+    a = FELN(layers=["P", "W", "W"], where=["", "x = 1", "x = 2"], relations=["within", "within"])
+    b = FELN(layers=["P", "W", "W"], where=["", "x = 2", "x = 1"], relations=["within", "within"])
+    assert a.same(b)

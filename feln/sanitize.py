@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+
+import sqlglot
+from sqlglot import exp
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_DANGEROUS_KEYWORDS_RE = re.compile(
-    r"\b("
-    r"DROP|CREATE|ALTER|TRUNCATE|INSERT|UPDATE|DELETE|MERGE"
-    r"|EXEC|EXECUTE|GRANT|REVOKE|ATTACH|DETACH|COPY|EXPORT|IMPORT"
-    r"|UNION\s+ALL|UNION\s+SELECT"
-    r")\b",
-    re.IGNORECASE,
-)
+
+# A plain attribute filter: comparisons, AND/OR/NOT, LIKE/ILIKE, IN, BETWEEN, IS [NOT] NULL,
+# literals (``cast(2 as SMALLINT)``, ``timestamp '…'``) and columns. No functions, subqueries,
+# or clauses after WHERE. Every WHERE in NorthSea's FELN.json and the generator fits this.
+_ALLOWED_NODES = (
+    exp.And, exp.Or, exp.Not, exp.Paren,
+    exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE,
+    exp.Like, exp.ILike, exp.Escape, exp.In, exp.Between, exp.Is, exp.Null,
+    exp.Literal, exp.Boolean, exp.Neg,
+    exp.Column, exp.Identifier,
+    exp.Cast, exp.DataType, exp.DataTypeParam,
+)  # fmt: skip
 
 
 def _strip_string_literals(clause: str) -> str:
@@ -51,17 +59,41 @@ def sanitize_identifier(name: str) -> str:
     return name
 
 
-def sanitize_where_clause(where: str | None) -> str | None:
-    """Reject multi-statement, comment, and DDL/DML smuggling outside literals."""
-    if where is None:
-        return None
+def sanitize_where_clause(where: str | None, columns: Iterable[str] | None = None) -> str | None:
+    """Return *where* if it is a plain attribute filter, else raise ``ValueError``.
+
+    An allowlist over the DuckDB AST (see ``_ALLOWED_NODES``), not a keyword blocklist.
+    Columns must be unqualified; with *columns*, they must also be in that set
+    (case-insensitive). Blank input passes through unchanged.
+    """
+    if where is None or not where.strip():
+        return where
     unquoted = _strip_string_literals(where)
     if ";" in unquoted:
         raise ValueError(f"WHERE clause contains prohibited semicolon: {where!r}")
     if "--" in unquoted or "/*" in unquoted:
         raise ValueError(f"WHERE clause contains prohibited comment sequence: {where!r}")
-    if _DANGEROUS_KEYWORDS_RE.search(unquoted):
-        raise ValueError(f"WHERE clause contains prohibited keyword: {where!r}")
+    try:
+        select = sqlglot.parse_one(f"SELECT 1 FROM t WHERE {where}", read="duckdb")
+    except Exception as e:
+        raise ValueError(f"unparseable WHERE clause {where!r}: {e}") from e
+    # ``x > 0 LIMIT 0`` or ``x > 0 UNION SELECT 1`` parse fine but are not a filter.
+    extra = [
+        k
+        for k, v in select.args.items()
+        if v and k not in ("expressions", "from", "from_", "where")
+    ]
+    if not isinstance(select, exp.Select) or extra:
+        raise ValueError(f"WHERE clause adds {extra or type(select).__name__}: {where!r}")
+    allowed = {c.lower() for c in columns} if columns is not None else None
+    for node in select.args["where"].this.walk():
+        if not isinstance(node, _ALLOWED_NODES):
+            raise ValueError(f"disallowed SQL construct {type(node).__name__} in {where!r}")
+        if isinstance(node, exp.Column):
+            if node.table:
+                raise ValueError(f"table-qualified column {node.sql()!r} in {where!r}")
+            if allowed is not None and node.name.lower() not in allowed:
+                raise ValueError(f"unknown column {node.name!r} in {where!r}")
     return where
 
 
