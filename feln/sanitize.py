@@ -16,7 +16,7 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _ALLOWED_NODES = (
     exp.And, exp.Or, exp.Not, exp.Paren,
     exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE,
-    exp.Like, exp.ILike, exp.In, exp.Between, exp.Is, exp.Null,
+    exp.Like, exp.ILike, exp.Escape, exp.In, exp.Between, exp.Is, exp.Null,
     exp.Literal, exp.Boolean, exp.Neg,
     exp.Column, exp.Identifier,
     exp.Cast, exp.DataType, exp.DataTypeParam,

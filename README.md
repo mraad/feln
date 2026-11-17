@@ -339,8 +339,8 @@ results are supplied, similarity is 70% OBJECTID Jaccard and 30% partial score;
 when both result sets are empty, it falls back to partial score alone.
 `identical()` parses as
 DuckDB, so identifiers are case-insensitive and `cast(2 as SMALLINT)` equals `2`.
-Semantic compare encodes one canonical string per FELN (sqlglot-normalized
-WHERE, parsed relations, secondaries sorted) and returns cosine similarity.
+`canonical_text` prints one canonical string per FELN (sqlglot-normalized WHERE,
+parsed relations, secondaries sorted), for callers that embed or deduplicate queries.
 
 ## Security
 

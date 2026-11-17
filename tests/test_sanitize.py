@@ -49,6 +49,7 @@ def test_where_rejects_non_filters(where: str) -> None:
         "discovery_type = cast(-1 as INTEGER) and name ILIKE '%35/11-4%'",
         "completion_date >= timestamp '1991-01-01' AND dimension BETWEEN 16.0 AND 42.0",
         "status IN ('P&A', 'SUSPENDED') AND NOT (field_name IS NULL)",
+        "name LIKE '%A!_B%' ESCAPE '!'",  # generator escapes _ % ! in LIKE values
         "\"dimension\" > CAST(20.0 AS DOUBLE PRECISION) AND name NOT LIKE 'A%'",
         "",
     ],

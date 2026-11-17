@@ -14,19 +14,25 @@ from sqlglot.optimizer.simplify import simplify
 DIALECT = "duckdb"
 
 
+def _trim_number(lit: exp.Literal) -> exp.Literal:
+    # ``1000.0`` and ``1000`` compare equal in DuckDB; only the digits carry meaning.
+    # Exponent forms (``1.0e10``) are left alone: trimming would change the value.
+    if lit.is_string or "." not in lit.this or "e" in lit.this.lower():
+        return lit
+    return exp.Literal.number(lit.this.rstrip("0").rstrip(".") or "0")
+
+
 def _strip_literal_casts(node: exp.Expression) -> exp.Expression:
     # ``cast(2 as SMALLINT)``, ``timestamp '1995-01-01'`` and ``CAST(250 AS DOUBLE)`` all
     # compare like the bare literal in DuckDB; only the literal carries meaning.
     inner = node.this if isinstance(node, exp.Cast) else None
-    if isinstance(inner, exp.Neg):  # ``cast(-1 as INTEGER)`` parses as Cast(Neg(Literal))
-        inner = inner.this
+    if isinstance(inner, exp.Neg) and isinstance(inner.this, exp.Literal):
+        # ``cast(-1.0 as DOUBLE)`` is Cast(Neg(Literal)); a replaced node's children are not
+        # revisited, so trim here to match the bare ``-1.0``.
+        return exp.Neg(this=_trim_number(inner.this))
     if isinstance(inner, exp.Literal):
-        node = node.this
-    if isinstance(node, exp.Literal) and not node.is_string and "." in node.this:
-        # ``1000.0`` and ``1000`` compare equal in DuckDB; only the digits carry meaning.
-        trimmed = node.this.rstrip("0").rstrip(".") or "0"
-        return exp.Literal.number(trimmed)
-    return node
+        node = inner
+    return _trim_number(node) if isinstance(node, exp.Literal) else node
 
 
 def parse_where(where: str) -> exp.Expression:
